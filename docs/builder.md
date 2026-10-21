@@ -1,7 +1,7 @@
 Builder
 ===
 
-Pitaya offers a [`Builder`](../builder.go) object which can be utilized to define a sort of pitaya properties.
+Pitaya offers a `Builder` object which can be utilized to define a sort of pitaya properties.
 
 ### PostBuildHooks
 

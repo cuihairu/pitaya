@@ -104,7 +104,7 @@ The list of metrics reported by the `Reporter` is:
 
 ### Custom Metrics
 
-Besides pitaya default monitoring, it is possible to create new metrics. If using only Statsd reporter, no configuration is needed. If using Prometheus, it is necessary do add a configuration specifying the metrics parameters. More details on [doc](configuration.html#metrics-reporting) and this [example](https://github.com/topfreegames/pitaya/tree/master/examples/demo/custom_metrics).
+Besides pitaya default monitoring, it is possible to create new metrics. If using only Statsd reporter, no configuration is needed. If using Prometheus, it is necessary do add a configuration specifying the metrics parameters. More details on doc and this [example](https://github.com/topfreegames/pitaya/tree/master/examples/demo/custom_metrics).
 
 ## Pipelines
 
