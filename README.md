@@ -19,6 +19,10 @@
 [11]: https://readthedocs.org/projects/pitaya/badge/?version=latest
 [12]: https://pitaya.readthedocs.io/en/latest/?badge=latest
 
+## Architecture
+
+![Pitaya framework architecture diagram](docs/public/images/architecture-en.svg)
+
 Pitaya is an simple, fast and lightweight game server framework with clustering support and client libraries for iOS, Android, Unity and others through the [C SDK](https://github.com/topfreegames/libpitaya).
 It provides a basic development framework for distributed multiplayer games and server-side applications.
 

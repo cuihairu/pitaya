@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1000" viewBox="0 0 1280 1000" role="img" aria-labelledby="title desc" xml:lang="en">
+<title id="title">Pitaya · Framework Architecture</title>
+<desc id="desc">Pitaya is a modular, extensible Go game server framework. Clients connect through the libpitaya SDK over TCP or WebSocket acceptors; the App runtime routes messages through a pipeline to user components (handlers and remotes), manages sessions, groups and push, and serializes JSON or Protobuf. Servers discover each other via etcd and call remotes over nats or gRPC. Observability uses Prometheus/statsd and OpenTelemetry/Jaeger. Based on repository packages and documentation.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10Z" fill="context-stroke"/></marker></defs>
+<style>text{font-family:Arial,'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#172b4d}.title{font-size:30px;font-weight:700}.name{font-size:22px;font-weight:700}.body{font-size:16px;fill:#435570}.small{font-size:14px;fill:#52647b}.label{font-size:14px;fill:#435570;paint-order:stroke;stroke:#f8fafc;stroke-width:5px;stroke-linejoin:round}.edge{fill:none;stroke-linejoin:round}.dash{stroke-dasharray:7 5}</style>
+<rect width="1280" height="1000" rx="20" fill="#f8fafc"/>
+<text x="40" y="48" class="title" text-anchor="start">Pitaya · Framework Architecture</text>
+<text x="40" y="80" class="body" text-anchor="start">Modular and extensible Go game server framework · acceptor → pipeline → components → cluster RPC</text>
+
+<path d="M330 220 V270" fill="none" stroke="#f8fafc" stroke-width="9"/>
+<path id="client-tcp" data-from="clients" data-to="tcp-acceptor" d="M330 220 V270" class="edge" style="stroke:#475569;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M950 220 V270" fill="none" stroke="#f8fafc" stroke-width="9"/>
+<path id="client-ws" data-from="clients" data-to="ws-acceptor" d="M950 220 V270" class="edge" style="stroke:#475569;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M330 370 V430" fill="none" stroke="#f8fafc" stroke-width="9"/>
+<path id="tcp-app" data-from="tcp-acceptor" data-to="app" d="M330 370 V430" class="edge" style="stroke:#2563eb;stroke-width:2.5" marker-end="url(#arrow)"/>
+<path d="M950 370 V430" fill="none" stroke="#f8fafc" stroke-width="9"/>
+<path id="ws-app" data-from="ws-acceptor" data-to="app" d="M950 370 V430" class="edge" style="stroke:#2563eb;stroke-width:2.5" marker-end="url(#arrow)"/>
+<path d="M330 760 V820" fill="none" stroke="#f8fafc" stroke-width="9"/>
+<path id="app-discovery" data-from="app" data-to="discovery" d="M330 760 V820" class="edge" style="stroke:#087f5b;stroke-width:2.5" marker-end="url(#arrow)"/>
+<path d="M950 760 V820" fill="none" stroke="#f8fafc" stroke-width="9"/>
+<path id="app-rpc" data-from="app" data-to="rpc" d="M950 760 V820" class="edge" style="stroke:#087f5b;stroke-width:2.5" marker-end="url(#arrow)"/>
+<path d="M640 870 H660" fill="none" stroke="#f8fafc" stroke-width="9"/>
+<path id="discovery-rpc" data-from="discovery" data-to="rpc" d="M640 870 H660" class="edge" style="stroke:#64748b;stroke-width:2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+
+<g id="clients" data-node="clients"><rect x="40" y="130" width="1200" height="90" rx="12" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+<text x="60" y="168" class="name" text-anchor="start">Clients · libpitaya SDK</text>
+<text x="60" y="196" class="body" text-anchor="start">iOS · Android · Unity · C# · other pitaya-compatible languages（libpitaya / libpitaya-cluster）</text>
+</g>
+
+<g id="tcp-acceptor" data-node="tcp-acceptor"><rect x="40" y="270" width="580" height="100" rx="12" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="60" y="308" class="name" text-anchor="start">TCP Acceptor</text>
+<text x="60" y="338" class="body" text-anchor="start">pkg/acceptor · conn · 连接接入</text>
+</g>
+<g id="ws-acceptor" data-node="ws-acceptor"><rect x="660" y="270" width="580" height="100" rx="12" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="680" y="308" class="name" text-anchor="start">WebSocket Acceptor</text>
+<text x="680" y="338" class="body" text-anchor="start">pkg/acceptor · conn · 连接接入</text>
+</g>
+
+<g id="app" data-node="app"><rect x="40" y="430" width="1200" height="330" rx="14" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.5"/>
+<text x="60" y="468" class="name" text-anchor="start">App · server instance（builder.go / app.go）</text>
+<rect x="60" y="480" width="370" height="110" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="80" y="514" class="body" text-anchor="start">Agent + Session</text>
+<text x="80" y="542" class="small" text-anchor="start">会话绑定 user id · 自定义数据</text>
+<text x="80" y="566" class="small" text-anchor="start">pkg/agent · pkg/session</text>
+<rect x="450" y="480" width="370" height="110" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="470" y="514" class="body" text-anchor="start">Router + Pipeline</text>
+<text x="470" y="542" class="small" text-anchor="start">消息路由 · 中间件链</text>
+<text x="470" y="566" class="small" text-anchor="start">pkg/router · pkg/pipeline</text>
+<rect x="840" y="480" width="370" height="110" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="860" y="514" class="body" text-anchor="start">Components</text>
+<text x="860" y="542" class="small" text-anchor="start">Handlers · Remotes · 生命周期</text>
+<text x="860" y="566" class="small" text-anchor="start">init / afterinit / shutdown</text>
+<rect x="60" y="610" width="370" height="90" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="80" y="644" class="body" text-anchor="start">Groups + Push</text>
+<text x="80" y="672" class="small" text-anchor="start">广播组 · 主动推送 · pkg/groups</text>
+<rect x="450" y="610" width="370" height="90" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="470" y="644" class="body" text-anchor="start">Serialize</text>
+<text x="470" y="672" class="small" text-anchor="start">JSON · Protobuf · 可扩展</text>
+<rect x="840" y="610" width="370" height="90" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="860" y="644" class="body" text-anchor="start">Timer + Worker</text>
+<text x="860" y="672" class="small" text-anchor="start">定时调度 · worker pool</text>
+<text x="60" y="740" class="small" text-anchor="start">扩展面：自定义 Modules（module / modules）· 自定义 Serializer · Reporter 接口（Prometheus / statsd）· OpenTelemetry / Jaeger 追踪 · Config（etcd / nats / 文件）</text>
+</g>
+
+<g id="discovery" data-node="discovery"><rect x="40" y="820" width="580" height="100" rx="12" fill="#eef8f5" stroke="#86c9b3" stroke-width="1.5"/>
+<text x="60" y="858" class="name" text-anchor="start">Service Discovery · etcd</text>
+<text x="60" y="888" class="body" text-anchor="start">pkg/cluster · 服务器注册 / 发现</text>
+</g>
+<g id="rpc" data-node="rpc"><rect x="660" y="820" width="580" height="100" rx="12" fill="#eef8f5" stroke="#86c9b3" stroke-width="1.5"/>
+<text x="680" y="858" class="name" text-anchor="start">RPC · nats / gRPC + Remote</text>
+<text x="680" y="888" class="body" text-anchor="start">pkg/rpc · pkg/remote · 跨服调用</text>
+</g>
+
+<text x="330" y="412" class="label" text-anchor="middle" style="fill:#2563eb">接入</text>
+<text x="950" y="412" class="label" text-anchor="middle" style="fill:#2563eb">接入</text>
+<text x="330" y="800" class="label" text-anchor="middle" style="fill:#087f5b">注册 / 发现</text>
+<text x="950" y="800" class="label" text-anchor="middle" style="fill:#087f5b">RPC</text>
+<text x="650" y="862" class="label" text-anchor="middle">← 路由 →</text>
+<text x="40" y="955" class="small" text-anchor="start">A message received by a handler is forwarded to the server of the correct type; remotes receive and process RPC messages. Framework is built on nano's networking layer, inspired by starx and pomelo.</text>
+<text x="40" y="980" class="small" text-anchor="start">Solid: data flow · Crossings without a dot are not connections</text>
+</svg>
