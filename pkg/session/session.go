@@ -107,7 +107,7 @@ type sessionImpl struct {
 
 type ReqInFlight struct {
 	m  map[string]string
-	mu sync.RWMutex
+	mu *sync.RWMutex
 }
 
 // Session represents a client session, which can store data during the connection.
@@ -193,7 +193,7 @@ func (pool *sessionPoolImpl) NewSession(entity networkentity.NetworkEntity, fron
 		OnCloseCallbacks:    []func(){},
 		IsFrontend:          frontend,
 		pool:                pool,
-		requestsInFlight:    ReqInFlight{m: make(map[string]string)},
+		requestsInFlight:    ReqInFlight{m: make(map[string]string), mu: &sync.RWMutex{}},
 		logger:              logger.Log,
 	}
 	if frontend {
