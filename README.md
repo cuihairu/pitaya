@@ -1,44 +1,31 @@
-# pitaya [![Build Status][7]][8] [![Coverage Status][9]][10] [![GoDoc][1]][2] [![Docs][11]][12] [![Go Report Card][3]][4] [![MIT licensed][5]][6]
+# pitaya
 
 <p align="center">
-<a href="https://github.com/cuihairu/pitaya/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a>
+  <a href="https://github.com/cuihairu/pitaya/releases"><img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status"></a>
+  <a href="https://github.com/cuihairu/pitaya/actions/workflows/tests.yaml"><img src="https://github.com/cuihairu/pitaya/actions/workflows/tests.yaml/badge.svg" alt="Build Status"></a>
+  <a href="https://coveralls.io/github/cuihairu/pitaya?branch=main"><img src="https://coveralls.io/repos/github/cuihairu/pitaya/badge.svg?branch=main" alt="Coverage Status"></a>
+  <a href="https://pkg.go.dev/github.com/topfreegames/pitaya/v3"><img src="https://pkg.go.dev/badge/github.com/topfreegames/pitaya/v3.svg" alt="GoDoc"></a>
+  <a href="https://pitaya.readthedocs.io/en/latest/"><img src="https://readthedocs.org/projects/pitaya/badge/?version=latest" alt="Docs"></a>
+  <a href="https://goreportcard.com/report/github.com/cuihairu/pitaya"><img src="https://goreportcard.com/badge/github.com/cuihairu/pitaya" alt="Go Report Card"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT licensed"></a>
 </p>
 
----
-
-[1]: https://godoc.org/github.com/topfreegames/pitaya?status.svg
-[2]: https://godoc.org/github.com/topfreegames/pitaya
-[3]: https://goreportcard.com/badge/github.com/topfreegames/pitaya
-[4]: https://goreportcard.com/report/github.com/topfreegames/pitaya
-[5]: https://img.shields.io/badge/license-MIT-blue.svg
-[6]: LICENSE
-[7]: https://github.com/topfreegames/pitaya/actions/workflows/tests.yaml/badge.svg
-[8]: https://github.com/topfreegames/pitaya/actions/workflows/tests.yaml
-[9]: https://coveralls.io/repos/github/topfreegames/pitaya/badge.svg?branch=master
-[10]: https://coveralls.io/github/topfreegames/pitaya?branch=master
-[11]: https://readthedocs.org/projects/pitaya/badge/?version=latest
-[12]: https://pitaya.readthedocs.io/en/latest/?badge=latest
-
-## Architecture
-
-![Pitaya framework architecture diagram](docs/public/images/architecture-en.svg)
-
-Pitaya is an simple, fast and lightweight game server framework with clustering support and client libraries for iOS, Android, Unity and others through the [C SDK](https://github.com/topfreegames/libpitaya).
+Pitaya is a scalable, fast and lightweight game server framework with clustering support and client libraries for iOS, Android, Unity and others through the [C SDK](https://github.com/topfreegames/libpitaya).
 It provides a basic development framework for distributed multiplayer games and server-side applications.
 
 ## Getting Started
 
 ### Prerequisites
 
-* [Go](https://golang.org/) >= 1.16
-* [etcd](https://github.com/coreos/etcd) (optional, used for service discovery)
+* [Go](https://golang.org/) >= 1.25.4
+* [etcd](https://github.com/etcd-io/etcd) (optional, used for service discovery)
 * [nats](https://github.com/nats-io/nats.go) (optional, used for sending and receiving rpc)
 * [docker](https://www.docker.com) (optional, used for running etcd and nats dependencies on containers)
 
 ### Installing
 clone the repo
 ```
-git clone https://github.com/topfreegames/pitaya.git
+git clone https://github.com/cuihairu/pitaya.git
 ```
 setup pitaya dependencies
 ```
@@ -62,10 +49,10 @@ run the room backend server from the cluster_grpc example
 make run-cluster-grpc-example-room
 ```
 
-Now there should be 2 pitaya servers running, a frontend connector and a backend room. To send requests, use a REPL client for pitaya [pitaya-cli](https://github.com/topfreegames/pitaya/tree/main/pitaya-cli).
+Now there should be 2 pitaya servers running, a frontend connector and a backend room. To send requests, use the REPL client bundled in this repo, [pitaya-cli](./cmd).
 
 ```
-$ pitaya-cli
+$ pitaya repl
 Pitaya REPL Client
 >>> connect localhost:3250
 connected!
@@ -101,11 +88,11 @@ If you have found a security vulnerability, please email security@tfgco.com
   + [libpitaya](https://github.com/topfreegames/libpitaya)
   + [pitaya-admin](https://github.com/topfreegames/pitaya-admin)
   + [pitaya-bot](https://github.com/topfreegames/pitaya-bot)
-  + [pitaya-cli](https://github.com/topfreegames/pitaya/tree/main/pitaya-cli)
   + [pitaya-protos](https://github.com/topfreegames/pitaya-protos)
 
 - Documents
-  + [API Reference](https://godoc.org/github.com/topfreegames/pitaya)
+  + [API Reference](https://pkg.go.dev/github.com/topfreegames/pitaya/v3)
+  + [REPL CLI](./docs/cli.md)
   + [In-depth documentation](https://pitaya.readthedocs.io/en/latest/)
 
 - Demo

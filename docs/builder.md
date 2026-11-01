@@ -3,7 +3,7 @@ Builder
 
 Pitaya offers a `Builder` object which can be utilized to define a sort of pitaya properties.
 
-### PostBuildHooks
+## PostBuildHooks
 
 Post-build hooks can be used to execute additional actions automatically after the build process. It also allows you to interact with the built pitaya app.
 
@@ -11,7 +11,7 @@ A common use case is where it becomes necessary to perform configuration steps i
 
 ```go
 // main.go
-cfg := config.NewDefaultBuilderConfig()
+cfg := config.NewDefaultPitayaConfig()
 builder := pitaya.NewDefaultBuilder(isFrontEnd, "my-server-type", pitaya.Cluster, map[string]string{}, *cfg)
 
 customModule := NewCustomModule(builder)
@@ -32,7 +32,7 @@ func NewCustomObject(builder *pitaya.Builder) *CustomObject {
 
 func (object *CustomObject) ConfigurePitaya() {
 	object.builder.AddAcceptor(...)
-	object.builder.AddPostBuildHook(func (app pitaya.App) {
+	object.builder.AddPostBuildHook(func (app pitaya.Pitaya) {
 		app.Register(...)
 	})
 }

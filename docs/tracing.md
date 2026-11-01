@@ -3,7 +3,7 @@ Tracing
 
 Pitaya supports tracing using [OpenTelemetry](https://opentelemetry.io/).
 
-### Using OpenTelemetry tracing
+## Using OpenTelemetry tracing
 
 Pitaya supports tracing using [OpenTelemetry](https://opentelemetry.io/). To enable and configure OpenTelemetry tracing, you can use standard OpenTelemetry environment variables.
 
@@ -20,7 +20,7 @@ func main() {
 }
 ```
 
-### Configuration Options
+## Configuration Options
 
 OpenTelemetry can be configured using standard environment variables. Here are some key variables you might want to set:
 
@@ -33,7 +33,7 @@ OpenTelemetry can be configured using standard environment variables. Here are s
 
 For a complete list of OpenTelemetry environment variables, refer to the [OpenTelemetry specification](https://opentelemetry.io/docs/concepts/sdk-configuration/general-sdk-configuration/).
 
-### Testing Locally
+## Testing Locally
 
 To test OpenTelemetry tracing locally, you can use Jaeger as your tracing backend. First, start Jaeger using Docker:
 

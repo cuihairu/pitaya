@@ -15,9 +15,11 @@ Welcome to Pitaya's documentation!
    communication
    configuration
    API
+   builder
    cli
    examples
    tracing
+   handshake-validators
 
 
 Indices and tables

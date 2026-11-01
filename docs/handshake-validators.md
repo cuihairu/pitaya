@@ -7,14 +7,14 @@ The primary purpose of these validators is to perform validation checks on the d
 
 In addition to data validation, handshake validators can also execute other custom logic to assess the client's compliance with the server-defined requirements. This additional logic may involve evaluating factors such as authenticating credentials, permissions, or any other criteria necessary to determine the client's eligibility to access the server.
 
-### Adding handshake validators
+## Adding handshake validators
 
 To ensure the effective utilization of these validators, they should be added to the `SessionPool` component. As a result, each newly created session within the `SessionPool` will automatically incorporate the designated validators.
 
 Once the handshake process is initiated, the validators will be invoked to execute their validation routines.
 
 ```go
-cfg := config.NewDefaultBuilderConfig()
+cfg := config.NewDefaultPitayaConfig()
 builder := pitaya.NewDefaultBuilder(isFrontEnd, "my-server-type", pitaya.Cluster, map[string]string{}, *cfg)
 builder.SessionPool.AddHandshakeValidator("MyCustomValidator", func (data *session.HandshakeData) error {
 	if data.Sys.Version != "1.0.0" {

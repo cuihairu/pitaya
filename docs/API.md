@@ -30,7 +30,7 @@ The clients can call the handler by calling `serverType.handlerName.methodName`.
 Messages are forwarded by pitaya to the appropriate server type, and custom routers can be added to the application by calling a pitaya app's `AddRoute`, it expects two arguments:
 
 * `serverType`: the server type of the target requests to be routed
-* `routingFunction`: the routing function with the signature `func(session.Session, *route.Route, []byte, map[string]*cluster.Server) (*cluster.Server, error)`, it receives the user's session, the route being requested, the message and the map of valid servers of the given type, the key being the servers' ids
+* `routingFunction`: the routing function with the signature `func(context.Context, *route.Route, []byte, map[string]*cluster.Server) (*cluster.Server, error)`, it receives the request context, the route being requested, the message and the map of valid servers of the given type, the key being the servers' ids
 
 The server will then use the routing function when routing requests to the given server type.
 
@@ -47,12 +47,13 @@ Handlers can optionally implement the following lifecycle methods:
 
 ### Handler example
 
-Below is a very barebones example of a handler definition, for a complete working example, check the [cluster demo](https://github.com/topfreegames/pitaya/tree/master/examples/demo/cluster).
+Below is a very barebones example of a handler definition, for a complete working example, check the [cluster demo](https://github.com/cuihairu/pitaya/tree/main/examples/demo/cluster).
 
 ```go
 import (
-  "github.com/topfreegames/pitaya"
-  "github.com/topfreegames/pitaya/component"
+  pitaya "github.com/topfreegames/pitaya/v3/pkg"
+  "github.com/topfreegames/pitaya/v3/pkg/component"
+  "github.com/topfreegames/pitaya/v3/pkg/config"
 )
 
 type Handler struct {
@@ -64,10 +65,10 @@ type UserRequestMessage struct {
   Content string `json:"content"`
 }
 
-type UserResponseMessage {
+type UserResponseMessage struct {
 }
 
-type UserPushMessage{
+type UserPushMessage struct {
   Command string `json:"cmd"`
 }
 
@@ -86,7 +87,7 @@ func (h *Handler) TestPush(ctx context.Context, msg *UserPushMessage) {
 }
 
 func main() {
-  builder := pitaya.NewDefaultBuilder()
+  builder := pitaya.NewDefaultBuilder(true, "example", pitaya.Cluster, map[string]string{}, *config.NewDefaultPitayaConfig())
   ...
   app := builder.Build()
 
@@ -143,4 +144,4 @@ Remotes can optionally implement the following lifecycle methods:
 
 ### Remote example
 
-For a complete working example, check the [cluster demo](https://github.com/topfreegames/pitaya/tree/master/examples/demo/cluster).
+For a complete working example, check the [cluster demo](https://github.com/cuihairu/pitaya/tree/main/examples/demo/cluster).

@@ -23,7 +23,7 @@ The goal of pitaya is to provide a basic, robust development framework for distr
 
 ## Architecture
 
-Pitaya was developed considering modularity and extendability at its core, while providing solid basic functionalities to abstract client interactions to well defined interfaces. The full API documentation is available in Godoc format at [godoc](https://godoc.org/github.com/topfreegames/pitaya).
+Pitaya was developed considering modularity and extendability at its core, while providing solid basic functionalities to abstract client interactions to well defined interfaces. The full API documentation is available in Go reference format at [pkg.go.dev](https://pkg.go.dev/github.com/topfreegames/pitaya/v3).
 
 ## Who's Using it
 
