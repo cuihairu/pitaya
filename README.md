@@ -6,7 +6,6 @@
   <a href="https://coveralls.io/github/cuihairu/pitaya?branch=main"><img src="https://coveralls.io/repos/github/cuihairu/pitaya/badge.svg?branch=main" alt="Coverage Status"></a>
   <a href="https://pkg.go.dev/github.com/topfreegames/pitaya/v3"><img src="https://pkg.go.dev/badge/github.com/topfreegames/pitaya/v3.svg" alt="GoDoc"></a>
   <a href="https://pitaya.readthedocs.io/en/latest/"><img src="https://readthedocs.org/projects/pitaya/badge/?version=latest" alt="Docs"></a>
-  <a href="https://goreportcard.com/report/github.com/cuihairu/pitaya"><img src="https://goreportcard.com/badge/github.com/cuihairu/pitaya" alt="Go Report Card"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT licensed"></a>
 </p>
 
