@@ -100,7 +100,9 @@ The list of metrics reported by the `Reporter` is:
 - Worker jobs total: the current amount of RPC reliability worker jobs. It is
   segmented by job status;
 - Worker queue size: the current size of RPC reliability worker job queues. It
-  is segmented by each available queue.
+  is segmented by each available queue;
+- Worker pool busy workers: the current number of busy workers in the RPC reliability worker pool. It is segmented by pool;
+- Worker pool total workers: the total number of workers in the RPC reliability worker pool. It is segmented by pool.
 
 ### Custom Metrics
 
@@ -140,7 +142,7 @@ ctx := pcontext.AddToPropagateCtx(context.Background(), constants.RequestTimeout
 
 then transfer the ctx to RPC() or RPCTo() function as the context parameter
 
-**Note**: this feature is only supportted while using nats currently.
+**Note**: this feature is supported by both the nats and grpc RPC clients.
 
 ## Server operation mode
 
@@ -158,7 +160,7 @@ Cluster mode is a more complete mode, using service discovery, RPC client and se
 
 Pitaya has support for different types of message serializers for the messages sent to and from the client, the default serializer is the JSON serializer and Pitaya comes with native support for the Protobuf serializer as well. New serializers can be implemented by implementing the `serialize.Serializer` interface.
 
-The desired serializer can be set by the application by calling the `SetSerializer` method from the `pitaya` package.
+The desired serializer is selected through the `pitaya.serializertype` configuration, where `1` is the default JSON serializer and `2` is the Protobuf serializer (see [Configuration](./configuration.rst)).
 
 ## Service discovery
 

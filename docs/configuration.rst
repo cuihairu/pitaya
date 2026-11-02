@@ -4,6 +4,25 @@ Configuration
 
 Pitaya uses Viper to control its configuration. Below we describe the configuration variables split by topic. We judge the default values are good for most cases, but might need to be changed for some use cases.
 
+General
+=======
+
+These configuration values configure general Pitaya app behavior.
+
+.. list-table::
+  :widths: 15 10 10 50
+  :header-rows: 1
+  :stub-columns: 1
+
+  * - Configuration
+    - Default value
+    - Type
+    - Description
+  * - pitaya.serializertype
+    - 1
+    - int
+    - Serializer used for client messages, 1 for JSON (default) and 2 for Protobuf
+
 Service Discovery
 =================
 
@@ -79,6 +98,10 @@ These configuration values configure service discovery for the default etcd serv
     - 10
     - int
     - The number of goroutines that should be used while getting server information on etcd initialization
+  * - pitaya.cluster.info.region
+    -
+    - string
+    - Region of the server, added to the server metadata on registration
 
 RPC Service
 ===========
@@ -263,7 +286,7 @@ Connection
     - 30s
     - time.Time
     - Keepalive heartbeat interval for the client connection
-  * - pitaya.buffer.agent.writetimeout
+  * - pitaya.buffer.agent.conntimeout
     - 10s
     - time.Duration
     - Timeout for agent to send packets
@@ -279,6 +302,10 @@ Connection
     - false
     - bool
     - If true, ignores rate limiting even when added with WithWrappers
+  * - pitaya.acceptor.proxyprotocol
+    - false
+    - bool
+    - Whether acceptors should enable the PROXY protocol to receive client connection metadata from load balancers
 
 Metrics Reporting
 =================
@@ -316,14 +343,14 @@ Metrics Reporting
     - 9090
     - int
     - Port to expose prometheus metrics
-  * - pitaya.metrics.constTags
+  * - pitaya.metrics.constLabels
     - map[string]string{}
     - map[string]string
-    - Constant tags to be added to reported metrics
-  * - pitaya.metrics.prometheus.additionalTags
+    - Constant labels to be added to reported metrics
+  * - pitaya.metrics.additionalLabels
     - map[string]string{}
     - map[string]string
-    - Additional tags to reported metrics, the map is from tag to default value
+    - Additional labels to reported metrics, the map is from label to default value
   * - pitaya.metrics.period
     - 15s
     - string
@@ -391,7 +418,31 @@ Metrics Reporting
   * - pitaya.metrics.custom.summaries[].Objectives
     - map[float64]float64
     - map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
-    - Custom summary objectives with quantiles 
+    - Custom summary objectives with quantiles
+  * - pitaya.metrics.custom.histograms
+    - []map[string]interface{}
+    - []map[string]interface
+    - Custom metrics histogram
+  * - pitaya.metrics.custom.histograms[].Subsystem
+    - ""
+    - string
+    - Custom histogram subsystem name
+  * - pitaya.metrics.custom.histograms[].Name
+    - ""
+    - string
+    - Custom histogram name, must not be empty
+  * - pitaya.metrics.custom.histograms[].Help
+    - ""
+    - string
+    - Custom histogram help which explain what is the metric, must not be empty
+  * - pitaya.metrics.custom.histograms[].Buckets
+    - []float64{}
+    - []float64
+    - Custom histogram buckets
+  * - pitaya.metrics.custom.histograms[].Labels
+    - []string{}
+    - []string
+    - Custom histogram labels the metric will carry
 
 Concurrency
 ===========
@@ -440,6 +491,18 @@ These configurations are only used if the modules are created. It is recommended
     - true
     - bool
     - Whether Pitaya should enforce unique sessions for the clients, enabling the unique sessions module
+  * - pitaya.session.drain.enabled
+    - false
+    - bool
+    - Whether Pitaya should drain sessions before shutting down when a SIGTERM is received
+  * - pitaya.session.drain.timeout
+    - 6h
+    - time.Duration
+    - Maximum time to wait for all sessions to be drained before forcing shutdown
+  * - pitaya.session.drain.period
+    - 5s
+    - time.Duration
+    - Interval between session count checks while draining
   * - pitaya.modules.bindingstorage.etcd.endpoints
     - localhost:2379
     - string
