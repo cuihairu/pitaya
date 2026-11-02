@@ -146,15 +146,28 @@ func Decode(data []byte) (*Message, error) {
 	if m.Type == Request || m.Type == Response {
 		id := uint(0)
 		// little end byte order
-		// WARNING: must can be stored in 64 bits integer
-		// variant length encode
+		// WARNING: id must be stored in 64 bits integer
+		// varint length encode
+		varintLen := 0
 		for i := offset; i < len(data); i++ {
 			b := data[i]
-			id += uint(b&0x7F) << uint(7*(i-offset))
+			// A 64-bit id needs at most 8 varint bytes; a 9th continuation
+			// byte would exceed the id width and let a malformed message
+			// swallow the entire payload.
+			if varintLen >= 8 {
+				return nil, ErrInvalidMessage
+			}
+			id += uint(b&0x7F) << uint(7*varintLen)
+			varintLen++
 			if b < 128 {
 				offset = i + 1
 				break
 			}
+		}
+		if offset == 1 {
+			// No terminating byte was found, so the varint consumed the
+			// whole payload instead of leaving the route/data intact.
+			return nil, ErrInvalidMessage
 		}
 		m.ID = id
 	}
@@ -180,6 +193,9 @@ func Decode(data []byte) (*Message, error) {
 			offset += 2
 		} else {
 			m.compressed = false
+			if offset >= size {
+				return nil, ErrInvalidMessage
+			}
 			rl := data[offset]
 			offset++
 

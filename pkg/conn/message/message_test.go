@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,12 @@ import (
 )
 
 var update = flag.Bool("update", false, "update .golden files")
+
+// mustGzipData is a repetitive payload that reliably shrinks under zlib on
+// all supported Go versions, so the encoder sets the gzip mask bit. Smaller
+// inputs (e.g. 39 bytes of "blabla") may be stored uncompressed on newer Go
+// versions, which would silently defeat the gzip assertion.
+var mustGzipData = []byte(strings.Repeat("blabla", 20))
 
 func resetDicts(t *testing.T) {
 	t.Helper()
@@ -56,7 +63,7 @@ var encodeTables = map[string]struct {
 
 	"test_reponse_type_with_error": {&Message{Type: Response, Data: []byte{0x01}, Err: true}, nil, true, 0x0, nil},
 	"test_must_gzip": {&Message{Type: Response,
-		Data: []byte("blablablablablablablablablablablablabla"), Err: true}, nil, true, 0x10, nil},
+		Data: mustGzipData, Err: true}, nil, true, 0x10, nil},
 }
 
 func TestEncode(t *testing.T) {
@@ -117,7 +124,7 @@ var decodeTables = map[string]struct {
 
 	"test_reponse_type_with_error": {&Message{Type: Response, Data: []byte{0x01}, Err: true}, nil, true, 0x0, nil},
 	"test_must_gzip": {&Message{Type: Response,
-		Data: []byte("blablablablablablablablablablablablabla"), Err: true}, nil, true, 0x10, nil},
+		Data: mustGzipData, Err: true}, nil, true, 0x10, nil},
 }
 
 func TestDecode(t *testing.T) {
@@ -208,4 +215,28 @@ func TestGetDictionary(t *testing.T) {
 
 	// make sure we're copying the routes maps
 	assert.NotEqual(t, fmt.Sprintf("%p", routes), fmt.Sprintf("%p", dict))
+}
+
+func TestDecodeEmptyRouteLengthDoesNotPanic(t *testing.T) {
+	// A Request carrying an ID but no route-length byte must yield
+	// ErrInvalidMessage instead of panicking on data[offset] (offset == size).
+	_, err := Decode([]byte{0x00, 0x01})
+	assert.EqualError(t, err, ErrInvalidMessage.Error())
+}
+
+func TestDecodeRejectsOverlongMessageIDVarint(t *testing.T) {
+	// Request (type 0) with an ID whose varint has a 9th continuation byte:
+	// the ID would exceed 64 bits and the decoder must reject it rather than
+	// treat the route-length/data bytes as part of the ID.
+	data := []byte{0x00, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80}
+	_, err := Decode(data)
+	assert.EqualError(t, err, ErrInvalidMessage.Error())
+}
+
+func TestDecodeRejectsUnterminatedMessageIDVarint(t *testing.T) {
+	// Request (type 0) whose ID varint never terminates before the payload
+	// ends; the decoder must not swallow the whole payload silently.
+	data := []byte{0x00, 0x80, 0x80}
+	_, err := Decode(data)
+	assert.EqualError(t, err, ErrInvalidMessage.Error())
 }
