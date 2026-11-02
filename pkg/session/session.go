@@ -197,14 +197,16 @@ func (pool *sessionPoolImpl) NewSession(entity networkentity.NetworkEntity, fron
 		requestsInFlight:    ReqInFlight{m: make(map[string]string), mu: &sync.RWMutex{}},
 		logger:              logger.Log,
 	}
-	if frontend {
-		pool.sessionsByID.Store(s.id, s)
-		atomic.AddInt64(&pool.SessionCount, 1)
-	}
 	s.logger = s.logger.WithField("session_id", s.id)
 	if len(UID) > 0 {
 		s.uid = UID[0]
 		s.logger = s.logger.WithField("uid", s.uid)
+	}
+	// Initialize all mutable fields before publishing the session, so a
+	// concurrent GetSessionByID never observes a half-initialized session.
+	if frontend {
+		pool.sessionsByID.Store(s.id, s)
+		atomic.AddInt64(&pool.SessionCount, 1)
 	}
 	return s
 }
@@ -444,12 +446,12 @@ func (s *sessionImpl) Bind(ctx context.Context, uid string) error {
 		return constants.ErrIllegalUID
 	}
 
-	if s.UID() != "" {
+	s.Lock()
+	if s.uid != "" {
 		s.logger.Debugf("Error trying to bind UID %s. A UID is already bound in this session", uid)
+		s.Unlock()
 		return constants.ErrSessionAlreadyBound
 	}
-
-	s.Lock()
 	s.uid = uid
 	s.Unlock()
 	for _, cb := range s.pool.sessionBindCallbacks {
@@ -524,7 +526,11 @@ func (s *sessionImpl) Close() {
 		// already closed; SessionCount and entity must not be touched twice
 		return
 	}
-	atomic.AddInt64(&s.pool.SessionCount, -1)
+	// Only frontend sessions are counted in SessionCount (see NewSession), so
+	// closing a backend session must not drive the counter negative.
+	if s.IsFrontend {
+		atomic.AddInt64(&s.pool.SessionCount, -1)
+	}
 	s.pool.sessionsByID.Delete(s.ID())
 	s.logger.Debug("Closing session")
 	// Only remove session by UID if the session ID matches the one being closed. This avoids problems with removing a valid session after the user has already reconnected before this session's heartbeat times out
@@ -873,6 +879,7 @@ func (s *sessionImpl) ValidateHandshake(data *HandshakeData) error {
 
 func (s *sessionImpl) sendRequestToFront(ctx context.Context, route string, includeData bool) error {
 	log := s.logger.WithField("route", route)
+	s.RLock()
 	sessionData := &protos.Session{
 		Id:  s.frontendSessionID,
 		Uid: s.uid,
@@ -880,6 +887,7 @@ func (s *sessionImpl) sendRequestToFront(ctx context.Context, route string, incl
 	if includeData {
 		sessionData.Data = s.encodedData
 	}
+	s.RUnlock()
 	b, err := proto.Marshal(sessionData)
 	if err != nil {
 		return err

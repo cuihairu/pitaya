@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"math/rand"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -1538,4 +1539,91 @@ func TestSessionCloseIdempotent(t *testing.T) {
 
 	s.Close() // a second close must not re-decrement SessionCount
 	assert.Equal(t, int64(0), pool.GetSessionCount())
+}
+
+func TestSessionCloseBackendDoesNotDecrementCount(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	entity := mocks.NewMockNetworkEntity(ctrl)
+	entity.EXPECT().Close().Times(1)
+
+	pool := NewSessionPool().(*sessionPoolImpl)
+	s := pool.NewSession(entity, false)
+	// Backend sessions are not counted in SessionCount; closing one must not
+	// drive the counter negative (it was never incremented).
+	assert.Equal(t, int64(0), pool.GetSessionCount())
+
+	s.Close()
+	assert.Equal(t, int64(0), pool.GetSessionCount())
+}
+
+func TestSessionConcurrentBind(t *testing.T) {
+	sessionPool := NewSessionPool()
+	// A frontend session needs no network entity: a successful Bind only
+	// stores the session in sessionsByUID.
+	ss := sessionPool.NewSession(nil, true)
+
+	const goroutines = 32
+	errs := make(chan error, goroutines)
+	var wg sync.WaitGroup
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs <- ss.Bind(nil, uuid.New().String())
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+
+	// Exactly one Bind may succeed; every other concurrent Bind must observe
+	// ErrSessionAlreadyBound. Before the fix, multiple Binds could pass the
+	// non-atomic check and overwrite each other's UID.
+	success := 0
+	alreadyBound := 0
+	for err := range errs {
+		switch err {
+		case nil:
+			success++
+		case constants.ErrSessionAlreadyBound:
+			alreadyBound++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	assert.Equal(t, 1, success)
+	assert.Equal(t, goroutines-1, alreadyBound)
+}
+
+func TestSessionPushToFrontConcurrentWithMutations(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockEntity := mocks.NewMockNetworkEntity(ctrl)
+	// Any number of SendRequest calls are expected while the session data is
+	// mutated concurrently; this exercises the previously-unlocked reads in
+	// sendRequestToFront (uid/encodedData/frontendSessionID).
+	mockEntity.EXPECT().
+		SendRequest(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&protos.Response{}, nil).
+		AnyTimes()
+
+	sessionPool := NewSessionPool().(*sessionPoolImpl)
+	ss := sessionPool.NewSession(mockEntity, false).(*sessionImpl)
+	ss.SetFrontendData("frontend-1", 42)
+	uid := uuid.New().String()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ {
+			_ = ss.PushToFront(context.Background())
+		}
+	}()
+
+	for i := 0; i < 200; i++ {
+		_ = ss.Bind(context.Background(), uid)
+		_ = ss.SetData(map[string]interface{}{"k": "v"})
+		ss.Clear()
+	}
+	<-done
 }
