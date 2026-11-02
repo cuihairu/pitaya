@@ -454,11 +454,11 @@ type parallelGetter struct {
 	workChan    chan parallelGetterWork
 }
 
-func newParallelGetter(cli *clientv3.Client, numWorkers int) parallelGetter {
+func newParallelGetter(cli *clientv3.Client, numWorkers int) *parallelGetter {
 	if numWorkers <= 0 {
 		numWorkers = 10
 	}
-	p := parallelGetter{
+	p := &parallelGetter{
 		cli:        cli,
 		numWorkers: numWorkers,
 		workChan:   make(chan parallelGetterWork),
