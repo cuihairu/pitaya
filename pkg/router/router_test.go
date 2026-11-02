@@ -131,7 +131,7 @@ func TestRouteNoServersAvailable(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	route := route.NewRoute(serverType, "service", "method")
+	rt := route.NewRoute(serverType, "service", "method")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockServiceDiscovery := mocks.NewMockServiceDiscovery(ctrl)
@@ -140,6 +140,36 @@ func TestRouteNoServersAvailable(t *testing.T) {
 		Return(map[string]*cluster.Server{}, nil)
 	router := New()
 	router.SetServiceDiscovery(mockServiceDiscovery)
-	_, err := router.Route(ctx, protos.RPCType_User, serverType, route, &message.Message{Data: []byte{0x01}})
+	_, err := router.Route(ctx, protos.RPCType_User, serverType, rt, &message.Message{Data: []byte{0x01}})
+	assert.Equal(t, constants.ErrNoServersAvailableOfType, err)
+}
+
+func TestRouteCustomFuncNilServer(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	rt := route.NewRoute(serverType, "service", "method")
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockServiceDiscovery := mocks.NewMockServiceDiscovery(ctrl)
+	mockServiceDiscovery.EXPECT().
+		GetServersByType(serverType).
+		Return(map[string]*cluster.Server{}, nil)
+
+	router := New()
+	// A custom route function may return (nil, nil) when serversOfType is
+	// empty; Route must surface ErrNoServersAvailableOfType instead of
+	// letting remoteCall pass a nil target to rpcClient.Call.
+	router.AddRoute(serverType, func(
+		ctx context.Context,
+		rt *route.Route,
+		payload []byte,
+		servers map[string]*cluster.Server,
+	) (*cluster.Server, error) {
+		return nil, nil
+	})
+	router.SetServiceDiscovery(mockServiceDiscovery)
+
+	_, err := router.Route(ctx, protos.RPCType_Sys, serverType, rt, &message.Message{Data: []byte{0x01}})
 	assert.Equal(t, constants.ErrNoServersAvailableOfType, err)
 }

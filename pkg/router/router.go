@@ -106,7 +106,14 @@ func (r *Router) Route(
 		}
 		return server, nil
 	}
-	return routeFunc(ctx, route, msg.Data, serversOfType)
+	server, err := routeFunc(ctx, route, msg.Data, serversOfType)
+	if err != nil {
+		return nil, err
+	}
+	if server == nil {
+		return nil, constants.ErrNoServersAvailableOfType
+	}
+	return server, nil
 }
 
 // AddRoute adds a routing function to a server type
