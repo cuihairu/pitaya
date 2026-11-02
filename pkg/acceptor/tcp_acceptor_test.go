@@ -291,7 +291,7 @@ func TestGetNextMessageInParts(t *testing.T) {
 
 	go func() {
 		time.Sleep(200 * time.Millisecond)
-		_, err = conn.Write(part2)
+		_, _ = conn.Write(part2)
 	}()
 
 	msg, err := playerConn.GetNextMessage()

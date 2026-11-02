@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/topfreegames/pitaya/v3/pkg/conn/codec"
 	"github.com/topfreegames/pitaya/v3/pkg/constants"
@@ -33,6 +34,7 @@ import (
 
 // TCPAcceptor struct
 type TCPAcceptor struct {
+	mu            sync.RWMutex
 	addr          string
 	connChan      chan PlayerConn
 	listener      net.Listener
@@ -102,6 +104,8 @@ func NewTLSAcceptor(addr string, certs ...tls.Certificate) *TCPAcceptor {
 
 // GetAddr returns the addr the acceptor will listen on
 func (a *TCPAcceptor) GetAddr() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	if a.listener != nil {
 		return a.listener.Addr().String()
 	}
@@ -115,6 +119,8 @@ func (a *TCPAcceptor) GetConnChan() chan PlayerConn {
 
 // Stop stops the acceptor
 func (a *TCPAcceptor) Stop() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.running = false
 	a.listener.Close()
 }
@@ -132,8 +138,10 @@ func (a *TCPAcceptor) ListenAndServe() {
 		listener = a.listenAndServeTLS(listener)
 	}
 
+	a.mu.Lock()
 	a.listener = listener
 	a.running = true
+	a.mu.Unlock()
 	a.serve()
 }
 
@@ -148,8 +156,10 @@ func (a *TCPAcceptor) ListenAndServeTLS(cert, key string) {
 
 	a.certs = append(a.certs, crt)
 
+	a.mu.Lock()
 	a.listener = a.listenAndServeTLS(listener)
 	a.running = true
+	a.mu.Unlock()
 	a.serve()
 }
 
@@ -182,8 +192,15 @@ func (a *TCPAcceptor) EnableProxyProtocol() {
 
 func (a *TCPAcceptor) serve() {
 	defer a.Stop()
-	for a.running {
-		conn, err := a.listener.Accept()
+	for {
+		a.mu.RLock()
+		running := a.running
+		listener := a.listener
+		a.mu.RUnlock()
+		if !running {
+			break
+		}
+		conn, err := listener.Accept()
 		if err != nil {
 			logger.Log.Errorf("Failed to accept TCP connection: %s", err.Error())
 			continue
@@ -197,6 +214,8 @@ func (a *TCPAcceptor) serve() {
 }
 
 func (a *TCPAcceptor) IsRunning() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 	return a.running
 }
 

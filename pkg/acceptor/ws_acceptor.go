@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -36,6 +37,7 @@ import (
 
 // WSAcceptor struct
 type WSAcceptor struct {
+	mu       sync.RWMutex
 	addr     string
 	connChan chan PlayerConn
 	listener net.Listener
@@ -66,15 +68,19 @@ func NewWSAcceptor(addr string, certs ...string) *WSAcceptor {
 }
 
 func (w *WSAcceptor) IsRunning() bool {
-        return w.running
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.running
 }
 
 func (w *WSAcceptor) GetConfiguredAddress() string {
-        return w.addr
+	return w.addr
 }
 
 // GetAddr returns the addr the acceptor will listen on
 func (w *WSAcceptor) GetAddr() string {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	if w.listener != nil {
 		return w.listener.Addr().String()
 	}
@@ -133,8 +139,10 @@ func (w *WSAcceptor) ListenAndServe() {
 	if err != nil {
 		logger.Log.Fatalf("Failed to listen: %s", err.Error())
 	}
+	w.mu.Lock()
 	w.listener = listener
 	w.running = true
+	w.mu.Unlock()
 	w.serve(&upgrader)
 }
 
@@ -155,7 +163,10 @@ func (w *WSAcceptor) ListenAndServeTLS(cert, key string) {
 	if err != nil {
 		logger.Log.Fatalf("Failed to listen: %s", err.Error())
 	}
+	w.mu.Lock()
 	w.listener = listener
+	w.running = true
+	w.mu.Unlock()
 	w.serve(&upgrader)
 }
 
@@ -170,6 +181,8 @@ func (w *WSAcceptor) serve(upgrader *websocket.Upgrader) {
 
 // Stop stops the acceptor
 func (w *WSAcceptor) Stop() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.running = false
 	err := w.listener.Close()
 	if err != nil {
