@@ -1,12 +1,9 @@
 # pitaya
 
 <p align="center">
-  <a href="https://github.com/cuihairu/pitaya/releases"><img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status"></a> <a href="https://cuihairu.github.io/pitaya/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a>
-  <a href="https://github.com/cuihairu/pitaya/actions/workflows/tests.yaml"><img src="https://github.com/cuihairu/pitaya/actions/workflows/tests.yaml/badge.svg" alt="Build Status"></a>
-  <a href="https://coveralls.io/github/cuihairu/pitaya?branch=main"><img src="https://coveralls.io/repos/github/cuihairu/pitaya/badge.svg?branch=main" alt="Coverage Status"></a>
+<p align="center"><a href="https://github.com/cuihairu/pitaya/releases"><img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status"></a> <a href="https://cuihairu.github.io/pitaya/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a> <a href="https://github.com/cuihairu/pitaya/actions/workflows/tests.yaml"><img src="https://github.com/cuihairu/pitaya/actions/workflows/tests.yaml/badge.svg" alt="Build Status"></a> <a href="https://coveralls.io/github/cuihairu/pitaya?branch=main"><img src="https://coveralls.io/repos/github/cuihairu/pitaya/badge.svg?branch=main" alt="Coverage Status"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT licensed"></a></p>
   <a href="https://pkg.go.dev/github.com/topfreegames/pitaya/v3"><img src="https://pkg.go.dev/badge/github.com/topfreegames/pitaya/v3.svg" alt="GoDoc"></a>
   <a href="https://pitaya.readthedocs.io/en/latest/"><img src="https://readthedocs.org/projects/pitaya/badge/?version=latest" alt="Docs"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT licensed"></a>
 </p>
 
 Pitaya is a scalable, fast and lightweight game server framework with clustering support and client libraries for iOS, Android, Unity and others through the [C SDK](https://github.com/topfreegames/libpitaya).
