@@ -1,3 +1,28 @@
 # 待办(代码深审遗留)
 
 - [x] message ID varint 解码补 8 字节上限:pkg/conn/message/message_encoder.go:150-159 的 varint 循环未强制 64 位(8 字节)上限,畸形报文可让 ID 解码吞掉整段负载;建议超过 8 个 continuation 字节即返回 ErrInvalidMessage(P3,2026-11-01 代码深审) — 已修复:b8a3e23 (message_encoder.go:157-158,169-170; message_test.go:233-256),全量测试绿
+
+# 审核发现 (diff 33b6df26c2f4..HEAD, 审核日期 2026-11-02)
+
+- [x] 审核发现:Route() 仅给 defaultRoute 补了空列表兜底,自定义 routeFunc 路径未覆盖——若自定义路由函数在 serversOfType 为空时返回 (nil, nil),remoteCall 拿到 nil target 直接进 rpcClient.Call 会 nil 解引用,建议在 Route 出口统一判空 — 已修复:86bbdd4 (router.go:109-115 对 routeFunc 返回值统一判空; router_test.go:147 TestRouteCustomFuncNilServer),全量测试绿
+- [x] 审核发现:sendRequestToFront 无锁读 s.uid 与 s.encodedData——本轮 0e8014e 已给 UID()/GetDataEncoded() 加锁,但 backend 会话 PushToFront 路径绕过 getter 直接裸读这两个字段,与 Bind/SetData/Remove/Clear 并发仍构成 data race,属"并发访问加锁"修复未覆盖的路径 — 已修复:8846bbd (session.go:882-890 在 sendRequestToFront 内持 RLock 读 uid/encodedData/frontendSessionID; session_test.go:1598 TestSessionPushToFrontConcurrentWithMutations),-race 全绿
+- [x] 审核发现:Bind 的"先检查 s.uid 非空再写入"非原子:检查在锁外 (447),写入在锁内 (452-454),两个 goroutine 并发 Bind 同一 session 可先后通过检查并互相覆盖 s.uid,击穿 ErrSessionAlreadyBound 语义 — 已修复:8846bbd (session.go:448-456 检查与写入合并进同一 Lock 临界区; session_test.go:1560 TestSessionConcurrentBind 断言恰好一次成功),-race 全绿
+- [x] 审核发现:acceptor 的 Stop() 在 listener 尚未建立时被调用会 nil pointer panic(Close 前未判空),本轮 205fb8c 只加了锁未补非空判断,建议 Stop/GetAddr 统一判空 — 已修复:65ac329 (tcp_acceptor.go:125 / ws_acceptor.go:187 对 listener==nil 提前返回; tcp_acceptor_test.go:303 TestStopBeforeListen、ws_acceptor_test.go:289 TestWSStopBeforeListen; GetAddr 已各自判空),测试绿
+- [x] 审核发现:测试缺口——上述 session 竞态(sendRequestToFront 裸读、Bind 并发)与 acceptor Stop-before-ListenAndServe 均无对应并发/边界测试,建议补 race 级用例 — 已修复:8846bbd+65ac329 (session_test.go:1544/1560/1598; tcp_acceptor_test.go:303; ws_acceptor_test.go:289),-race 全绿
+- [x] 审核发现:覆盖说明——已逐文件审 33b6df26c2f4..HEAD 全部 11 个提交、27 个文件;核心安全修复(message varint 上限/未终止检测、空路由、zip-bomb 上限、nil reply、listener 生命周期锁、heartbeat 非正间隔、Close 幂等)逻辑正确且有针对性测试;go build ./pkg/... 与 go test ./pkg/... 全绿(含 -race 的 session 包);未发现注入/反序列化/越界/泄漏类新问题 — 属实(复查确认,全部已修复:86bbdd4/8846bbd/65ac329/a2c87d5/bec9511),pkg/ 全仓库测试绿
+
+## 审核 33b6df26c2f4..HEAD（只审未改，2026-11-02）
+
+覆盖范围：pkg/session、pkg/conn/message、pkg/util/compression、pkg/router、pkg/rpc.go、pkg/client、pkg/acceptor(tcp/ws)、pkg/cluster(etcd)、pkg/metrics、pkg/modules、pkg/agent_test、pkg/service/remote、.gitignore、todo.md。全部 12 个提交逐项核对；`go test` 全绿（message/compression/router/client/acceptor/cluster/session 含 -race）。
+
+- [x] 审核发现：message ID varint 解码 8 字节上限只支持 ID<2^56，而 Encode 对 ID>=2^56 可产出 9-11 字节 varint——同一 ID 编码成功但 Decode 返回 ErrInvalidMessage，编解码不对称；且注释“64-bit id needs at most 8 varint bytes”有误（64 位需 10 字节）。实测 id=1<<56 被拒 — 已修复:bec9511 (message_encoder.go:158-161 上限放宽到 10 字节并防第 10 字节溢出,注释修正; message_test.go:253 TestEncodeDecodeFull64BitID、:265 TestDecodeRejectsOverflowingMessageIDVarint),测试绿
+- [x] 审核发现：sendRequestToFront 在无锁下读 s.uid/s.encodedData/s.frontendSessionID，而本次改动已让 Bind/SetData/Clear 持锁写这些字段，混合同步仍构成数据竞态，本提交“guard concurrent data access”未覆盖此处 — 已修复:8846bbd (session.go:882-890 持 RLock 读取; session_test.go:1598),-race 全绿
+- [x] 审核发现：NewSession 先向 sessionsByID 发布（:201）再无锁写 s.uid=UID[0]（:206），而 UID() 现持 RLock 读（:393-395），不对称加锁仍有竞态；且发布早于初始化，并发 GetSessionByID 可能读到半初始化 session — 已修复:8846bbd (session.go:201-210 先初始化 uid/logger 再发布到 sessionsByID),-race 全绿
+- [x] 审核发现：Close() 无条件对 SessionCount -1（:527），但 NewSession 仅对 frontend session +1（:200-203）；backend session（agent_remote.go:79 NewSession(a,false,...)）关闭时经 handler.go:208 调 Close() 会使 SessionCount 变负，连接数统计失真。本次幂等化仅防重复递减，未修复该不对称 — 已修复:8846bbd (session.go:531-532 仅 IsFrontend 才递减 SessionCount; session_test.go:1544 TestSessionCloseBackendDoesNotDecrementCount),测试绿
+- [x] 审核发现：Bind() 的 UID 判空（RLock 读）与写入（Lock）非原子，并发两次 Bind 可同时通过检查并互相覆盖 uid（TOCTOU 竞态），本次加锁未使检查+写入原子化 — 已修复:8846bbd (session.go:448-456 检查+写入同临界区; session_test.go:1560),-race 全绿
+- [x] 审核发现：TCP/WS 的 Stop() 对 listener 未做 nil 判空直接 Close()，在 ListenAndServe 之前调用会空指针 panic；本次加锁仅解决可见性，未补 nil 保护 — 已修复:65ac329 (tcp_acceptor.go:125 / ws_acceptor.go:187 判空提前返回; tcp_acceptor_test.go:303 / ws_acceptor_test.go:289),测试绿
+- [x] 审核发现：doSendRPC 仅判 reply==nil，类型化 nil 指针 reply（如 (*Msg)(nil)）仍通过 Ptr 检查，后续 RPC 解引用 nil 会 panic，保护不完整 — 已修复:a2c87d5 (rpc.go:75 用 reflect.ValueOf(reply).IsNil() 拒类型化 nil; rpc_test.go:112 TestDoSendRPCTypedNilReply),测试绿
+- [x] 审核发现：router 自定义 routeFunc 分支（routesMap[svType] 命中）仍直接以空 serversOfType 调用 routeFunc，未作 nil/空防护；本次仅防护默认路由两处，自定义路由函数对空 map 可能 panic — 已修复:86bbdd4 (router.go:109-115 对 routeFunc 返回值判空; router_test.go:147),测试绿
+- [x] 审核发现：同一提交承认 zlib 输出随 Go 版本变化（compression_test.go 改为 round-trip），但 message_test.go TestEncode 仍对 gzip 用例断言精确 golden 字节，跨 Go 版本脆弱；go.mod 为 1.25.4 而 golden 由 1.27.1 生成 — 已修复:bec9511 (message_test.go:69-99 对 gzip 用例改 round-trip 断言,非压缩仍走 golden),测试绿
+- [x] 审核发现（测试缺口）：无 backend session Close 使 SessionCount 变负的测试（覆盖上第 4 条）；无并发 Bind/UID/sendRequestToFront 竞态测试（第 2/3/5 条），现有测试不触发并发，-race 未能暴露 — 已修复:8846bbd (session_test.go:1544 TestSessionCloseBackendDoesNotDecrementCount、:1560 TestSessionConcurrentBind、:1598 TestSessionPushToFrontConcurrentWithMutations),-race 全绿
+- [x] 审核发现（测试缺口）：无 ID>=2^56 编解码往返测试（覆盖第 1 条）；无 Stop-before-Listen 测试（覆盖第 6 条） — 已修复:bec9511+65ac329 (message_test.go:253 TestEncodeDecodeFull64BitID、:265 TestDecodeRejectsOverflowingMessageIDVarint; tcp_acceptor_test.go:303 / ws_acceptor_test.go:289),测试绿
