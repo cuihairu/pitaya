@@ -97,6 +97,7 @@ type sessionImpl struct {
 	encodedData         []byte                                // session data encoded as a byte array
 	OnCloseCallbacks    []func()                              //onClose callbacks
 	IsFrontend          bool                                  // if session is a frontend session
+	frontendCounted     bool                                  // session was created as frontend (SessionCount accounting is fixed at construction)
 	frontendID          string                                // the id of the frontend that owns the session
 	frontendSessionID   int64                                 // the id of the session on the frontend server
 	Subscriptions       []*nats.Subscription                  // subscription created on bind when using nats rpc server
@@ -127,7 +128,7 @@ type Session interface {
 	SetRequestInFlight(reqID string, reqData string, inFlight bool)
 
 	Push(route string, v interface{}) error
-	ResponseMID(ctx context.Context, mid uint, v interface{}, err ...bool) error
+	ResponseMID(ctx context.Context, mid uint64, v interface{}, err ...bool) error
 	ID() int64
 	UID() string
 	GetData() map[string]interface{}
@@ -193,6 +194,7 @@ func (pool *sessionPoolImpl) NewSession(entity networkentity.NetworkEntity, fron
 		lastTime:            time.Now().Unix(),
 		OnCloseCallbacks:    []func(){},
 		IsFrontend:          frontend,
+		frontendCounted:     frontend,
 		pool:                pool,
 		requestsInFlight:    ReqInFlight{m: make(map[string]string), mu: &sync.RWMutex{}},
 		logger:              logger.Log,
@@ -381,7 +383,7 @@ func (s *sessionImpl) Push(route string, v interface{}) error {
 
 // ResponseMID responses message to client, mid is
 // request message ID
-func (s *sessionImpl) ResponseMID(ctx context.Context, mid uint, v interface{}, err ...bool) error {
+func (s *sessionImpl) ResponseMID(ctx context.Context, mid uint64, v interface{}, err ...bool) error {
 	return s.entity.ResponseMID(ctx, mid, v, err...)
 }
 
@@ -436,6 +438,9 @@ func (s *sessionImpl) SetDataEncoded(encodedData []byte) error {
 
 // SetFrontendData sets frontend id and session id
 func (s *sessionImpl) SetFrontendData(frontendID string, frontendSessionID int64) {
+	s.Lock()
+	defer s.Unlock()
+
 	s.frontendID = frontendID
 	s.frontendSessionID = frontendSessionID
 }
@@ -526,9 +531,10 @@ func (s *sessionImpl) Close() {
 		// already closed; SessionCount and entity must not be touched twice
 		return
 	}
-	// Only frontend sessions are counted in SessionCount (see NewSession), so
-	// closing a backend session must not drive the counter negative.
-	if s.IsFrontend {
+	// Only sessions created as frontend are counted in SessionCount (see
+	// NewSession). frontendCounted is fixed at construction, so flipping
+	// IsFrontend via SetIsFrontend must not disturb the counter.
+	if s.frontendCounted {
 		atomic.AddInt64(&s.pool.SessionCount, -1)
 	}
 	s.pool.sessionsByID.Delete(s.ID())
@@ -887,12 +893,13 @@ func (s *sessionImpl) sendRequestToFront(ctx context.Context, route string, incl
 	if includeData {
 		sessionData.Data = s.encodedData
 	}
+	frontendID := s.frontendID
 	s.RUnlock()
 	b, err := proto.Marshal(sessionData)
 	if err != nil {
 		return err
 	}
-	res, err := s.entity.SendRequest(ctx, s.frontendID, route, b)
+	res, err := s.entity.SendRequest(ctx, frontendID, route, b)
 	if err != nil {
 		return err
 	}

@@ -26,3 +26,11 @@
 - [x] 审核发现：同一提交承认 zlib 输出随 Go 版本变化（compression_test.go 改为 round-trip），但 message_test.go TestEncode 仍对 gzip 用例断言精确 golden 字节，跨 Go 版本脆弱；go.mod 为 1.25.4 而 golden 由 1.27.1 生成 — 已修复:bec9511 (message_test.go:69-99 对 gzip 用例改 round-trip 断言,非压缩仍走 golden),测试绿
 - [x] 审核发现（测试缺口）：无 backend session Close 使 SessionCount 变负的测试（覆盖上第 4 条）；无并发 Bind/UID/sendRequestToFront 竞态测试（第 2/3/5 条），现有测试不触发并发，-race 未能暴露 — 已修复:8846bbd (session_test.go:1544 TestSessionCloseBackendDoesNotDecrementCount、:1560 TestSessionConcurrentBind、:1598 TestSessionPushToFrontConcurrentWithMutations),-race 全绿
 - [x] 审核发现（测试缺口）：无 ID>=2^56 编解码往返测试（覆盖第 1 条）；无 Stop-before-Listen 测试（覆盖第 6 条） — 已修复:bec9511+65ac329 (message_test.go:253 TestEncodeDecodeFull64BitID、:265 TestDecodeRejectsOverflowingMessageIDVarint; tcp_acceptor_test.go:303 / ws_acceptor_test.go:289),测试绿
+
+# 审核发现 (diff 9b4f9f675590..HEAD, 审核日期 2026-11-03)
+
+覆盖范围：全部 7 个提交（86bbdd4/8846bbd/65ac329/a2c87d5/bec9511/6a20c52/c85f28a）、15 个文件；pkg/session、pkg/conn/message、pkg/router、pkg/rpc.go、pkg/acceptor(tcp/ws) 及对应测试、README.md、docs/审核一致性.md、todo.md。逐文件核对了修复逻辑与测试覆盖。
+
+- [ ] 审核发现：8846bbd 给 sendRequestToFront 的读取加了 RLock（session.go:882-890），但对应写端 SetFrontendData 仍无锁写 frontendID/frontendSessionID（session.go:438-441）——RWMutex 仅在全部访问者都持锁时才排除竞态，SetFrontendData 与 PushToFront/bindInFront 并发的 data race 依旧存在，属"加锁修复"未覆盖写端；新测试 TestSessionPushToFrontConcurrentWithMutations 只在启动 goroutine 前调用一次 SetFrontendData（session_test.go:1612），-race 无法暴露（pkg/session/session.go:440,884）
+- [ ] 审核发现：Close() 改为仅 IsFrontend 时递减 SessionCount（session.go:531），而计数在 NewSession 以构造参数 frontend 为准（session.go:207），两者依赖"创建后 IsFrontend 不再变化"这一隐含不变量，但 SetIsFrontend 公开设置器可随时翻转该字段（session.go:368-370）——frontend 会话被翻转后 Close 不再递减（计数偏高），backend 会话被翻转为 true 后 Close 会驱动计数为负；无任何测试覆盖 SetIsFrontend+Close 组合（pkg/session/session.go:531,368-370）
+- [ ] 审核发现：bec9511 宣称"support full 64-bit id"，但编码/解码均以平台相关 uint 承载 ID（message_encoder.go:147,164; message.go:73），仅 uint==64bit 的平台成立；32 位平台上 10 字节 varint 的 uint(b&0x7F)<<63 按 Go 语义对 unsigned 得 0，超 2^32 的 ID 会静默截断而非拒绝，且测试常量 1<<63 在 32 位下直接编译失败（message_test.go:254-256）——建议改用显式 uint64 或加 32 位构建约束（pkg/conn/message/message_encoder.go:147）

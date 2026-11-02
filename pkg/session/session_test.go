@@ -275,7 +275,7 @@ func TestSessionResponseMID(t *testing.T) {
 	mockEntity := mocks.NewMockNetworkEntity(ctrl)
 	sessionPool := NewSessionPool()
 	ss := sessionPool.NewSession(mockEntity, false)
-	mid := uint(rand.Int())
+	mid := uint64(rand.Int())
 	v := someStruct{A: 1, B: "aaa"}
 	ctx := context.Background()
 
@@ -1557,6 +1557,34 @@ func TestSessionCloseBackendDoesNotDecrementCount(t *testing.T) {
 	assert.Equal(t, int64(0), pool.GetSessionCount())
 }
 
+func TestSessionCloseFrontendAfterSetIsFrontendFalse(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	entity := mocks.NewMockNetworkEntity(ctrl)
+	entity.EXPECT().Close().Times(1)
+
+	pool := NewSessionPool().(*sessionPoolImpl)
+	s := pool.NewSession(entity, true)
+	s.SetIsFrontend(false)
+	s.Close()
+
+	assert.Equal(t, int64(0), pool.GetSessionCount())
+}
+
+func TestSessionCloseBackendAfterSetIsFrontendTrue(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	entity := mocks.NewMockNetworkEntity(ctrl)
+	entity.EXPECT().Close().Times(1)
+
+	pool := NewSessionPool().(*sessionPoolImpl)
+	s := pool.NewSession(entity, false)
+	s.SetIsFrontend(true)
+	s.Close()
+
+	assert.Equal(t, int64(0), pool.GetSessionCount())
+}
+
 func TestSessionConcurrentBind(t *testing.T) {
 	sessionPool := NewSessionPool()
 	// A frontend session needs no network entity: a successful Bind only
@@ -1624,6 +1652,10 @@ func TestSessionPushToFrontConcurrentWithMutations(t *testing.T) {
 		_ = ss.Bind(context.Background(), uid)
 		_ = ss.SetData(map[string]interface{}{"k": "v"})
 		ss.Clear()
+		// SetFrontendData previously wrote frontendID/frontendSessionID
+		// without holding the lock, racing the locked reads in
+		// sendRequestToFront. Exercise it concurrently with PushToFront.
+		ss.SetFrontendData("frontend-2", int64(i))
 	}
 	<-done
 }
