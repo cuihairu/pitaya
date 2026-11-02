@@ -29,6 +29,7 @@ import (
 	"os"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -642,18 +643,18 @@ func TestAgentClose(t *testing.T) {
 	assert.NoError(t, err)
 
 	// validate channels are closed
-	stopWrite := false
-	stopHeartbeat := false
-	die := false
+	var stopWrite atomic.Bool
+	var stopHeartbeat atomic.Bool
+	var die atomic.Bool
 	go func() {
 		for {
 			select {
 			case <-ag.chStopWrite:
-				stopWrite = true
+				stopWrite.Store(true)
 			case <-ag.chStopHeartbeat:
-				stopHeartbeat = true
+				stopHeartbeat.Store(true)
 			case <-ag.chDie:
-				die = true
+				die.Store(true)
 			}
 		}
 	}()
@@ -665,7 +666,7 @@ func TestAgentClose(t *testing.T) {
 	assert.Equal(t, ag.state, constants.StatusClosed)
 	assert.True(t, expected)
 	helpers.ShouldEventuallyReturn(
-		t, func() bool { return stopWrite && stopHeartbeat && die },
+		t, func() bool { return stopWrite.Load() && stopHeartbeat.Load() && die.Load() },
 		true, 50*time.Millisecond, 500*time.Millisecond)
 }
 
@@ -1027,14 +1028,10 @@ func TestAgentHeartbeat(t *testing.T) {
 	mockConn.EXPECT().RemoteAddr().MaxTimes(1)
 	mockConn.EXPECT().Close().MaxTimes(1)
 
-	die := false
+	var die atomic.Bool
 	go func() {
-		for {
-			select {
-			case <-ag.chDie:
-				die = true
-			}
-		}
+		<-ag.chDie
+		die.Store(true)
 	}()
 
 	go ag.heartbeat()
@@ -1042,7 +1039,7 @@ func TestAgentHeartbeat(t *testing.T) {
 		pWrite := helpers.ShouldEventuallyReceive(t, ag.chSend, 1100*time.Millisecond).(pendingWrite)
 		assert.Equal(t, pendingWrite{data: hbd}, pWrite)
 	}
-	helpers.ShouldEventuallyReturn(t, func() bool { return die }, true, 500*time.Millisecond, 5*time.Second)
+	helpers.ShouldEventuallyReturn(t, func() bool { return die.Load() }, true, 500*time.Millisecond, 5*time.Second)
 }
 
 func TestAgentHeartbeatExitsIfConnError(t *testing.T) {
@@ -1062,14 +1059,10 @@ func TestAgentHeartbeatExitsIfConnError(t *testing.T) {
 	mockConn.EXPECT().RemoteAddr().MaxTimes(1)
 	mockConn.EXPECT().Close().MaxTimes(1)
 
-	die := false
+	var die atomic.Bool
 	go func() {
-		for {
-			select {
-			case <-ag.chDie:
-				die = true
-			}
-		}
+		<-ag.chDie
+		die.Store(true)
 	}()
 
 	go ag.heartbeat()
@@ -1078,7 +1071,7 @@ func TestAgentHeartbeatExitsIfConnError(t *testing.T) {
 		assert.Equal(t, pendingWrite{data: hbd}, pWrite)
 	}
 
-	helpers.ShouldEventuallyReturn(t, func() bool { return die }, true, 500*time.Millisecond, 2*time.Second)
+	helpers.ShouldEventuallyReturn(t, func() bool { return die.Load() }, true, 500*time.Millisecond, 2*time.Second)
 }
 
 func TestAgentHeartbeatExitsOnStopHeartbeat(t *testing.T) {
@@ -1169,14 +1162,10 @@ func TestAgentHandle(t *testing.T) {
 	mockConn.EXPECT().Write(hbd).Return(0, nil).Times(2)
 	var wg sync.WaitGroup
 	wg.Add(1)
-	closed := false
+	var closed atomic.Bool
 	go func() {
-		for {
-			select {
-			case <-ag.chDie:
-				closed = true
-			}
-		}
+		<-ag.chDie
+		closed.Store(true)
 	}()
 
 	mockConn.EXPECT().SetWriteDeadline(gomock.Any()).Return(nil).Times(3)
@@ -1193,7 +1182,7 @@ func TestAgentHandle(t *testing.T) {
 	go ag.Handle()
 
 	wg.Wait()
-	helpers.ShouldEventuallyReturn(t, func() bool { return closed }, true, 50*time.Millisecond, 5*time.Second)
+	helpers.ShouldEventuallyReturn(t, func() bool { return closed.Load() }, true, 50*time.Millisecond, 5*time.Second)
 }
 
 func TestNatsRPCServerReportMetrics(t *testing.T) {

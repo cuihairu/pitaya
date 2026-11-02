@@ -1522,3 +1522,20 @@ func TestGetNumberOfConnectedClients(t *testing.T) {
 	connections = sessionPool.GetNumberOfConnectedClients()
 	assert.Equal(t, int64(1), connections)
 }
+
+func TestSessionCloseIdempotent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	entity := mocks.NewMockNetworkEntity(ctrl)
+	entity.EXPECT().Close().Times(1)
+
+	pool := NewSessionPool().(*sessionPoolImpl)
+	s := pool.NewSession(entity, true)
+	assert.Equal(t, int64(1), pool.GetSessionCount())
+
+	s.Close()
+	assert.Equal(t, int64(0), pool.GetSessionCount())
+
+	s.Close() // a second close must not re-decrement SessionCount
+	assert.Equal(t, int64(0), pool.GetSessionCount())
+}

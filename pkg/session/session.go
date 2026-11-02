@@ -102,7 +102,8 @@ type sessionImpl struct {
 	Subscriptions       []*nats.Subscription                  // subscription created on bind when using nats rpc server
 	requestsInFlight    ReqInFlight                           // whether the session is waiting from a response from a remote
 	pool                *sessionPoolImpl
-	logger              interfaces.Logger                     // logger instance for this session
+	closed              int32             // guards Close against double invocation
+	logger              interfaces.Logger // logger instance for this session
 }
 
 type ReqInFlight struct {
@@ -200,10 +201,10 @@ func (pool *sessionPoolImpl) NewSession(entity networkentity.NetworkEntity, fron
 		pool.sessionsByID.Store(s.id, s)
 		atomic.AddInt64(&pool.SessionCount, 1)
 	}
-	s.logger = s.logger.WithField("session_id",s.id)
+	s.logger = s.logger.WithField("session_id", s.id)
 	if len(UID) > 0 {
 		s.uid = UID[0]
-		s.logger = s.logger.WithField("uid",s.uid)
+		s.logger = s.logger.WithField("uid", s.uid)
 	}
 	return s
 }
@@ -389,6 +390,8 @@ func (s *sessionImpl) ID() int64 {
 
 // UID returns uid that bind to current session
 func (s *sessionImpl) UID() string {
+	s.RLock()
+	defer s.RUnlock()
 	return s.uid
 }
 
@@ -411,6 +414,8 @@ func (s *sessionImpl) SetData(data map[string]interface{}) error {
 
 // GetDataEncoded returns the session data as an encoded value
 func (s *sessionImpl) GetDataEncoded() []byte {
+	s.RLock()
+	defer s.RUnlock()
 	return s.encodedData
 }
 
@@ -444,12 +449,16 @@ func (s *sessionImpl) Bind(ctx context.Context, uid string) error {
 		return constants.ErrSessionAlreadyBound
 	}
 
+	s.Lock()
 	s.uid = uid
+	s.Unlock()
 	for _, cb := range s.pool.sessionBindCallbacks {
 		err := cb(ctx, s)
 		if err != nil {
 			s.logger.Error("Error running session bind callback. Removing uid from session")
+			s.Lock()
 			s.uid = ""
+			s.Unlock()
 			return err
 		}
 	}
@@ -468,7 +477,9 @@ func (s *sessionImpl) Bind(ctx context.Context, uid string) error {
 		err := s.bindInFront(ctx)
 		if err != nil {
 			s.logger.Error("error while trying to push session to front: ", err)
+			s.Lock()
 			s.uid = ""
+			s.Unlock()
 			return err
 		}
 	}
@@ -477,7 +488,9 @@ func (s *sessionImpl) Bind(ctx context.Context, uid string) error {
 	for _, cb := range s.pool.afterBindCallbacks {
 		err := cb(ctx, s)
 		if err != nil {
+			s.Lock()
 			s.uid = ""
+			s.Unlock()
 			return err
 		}
 	}
@@ -507,6 +520,10 @@ func (s *sessionImpl) OnClose(c func()) error {
 // Close terminates current session, session related data will not be released,
 // all related data should be cleared explicitly in Session closed callback
 func (s *sessionImpl) Close() {
+	if !atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
+		// already closed; SessionCount and entity must not be touched twice
+		return
+	}
 	atomic.AddInt64(&s.pool.SessionCount, -1)
 	s.pool.sessionsByID.Delete(s.ID())
 	s.logger.Debug("Closing session")
@@ -876,6 +893,8 @@ func (s *sessionImpl) sendRequestToFront(ctx context.Context, route string, incl
 }
 
 func (s *sessionImpl) HasRequestsInFlight() bool {
+	s.requestsInFlight.mu.RLock()
+	defer s.requestsInFlight.mu.RUnlock()
 	return len(s.requestsInFlight.m) != 0
 }
 
