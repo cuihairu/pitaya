@@ -113,9 +113,9 @@ func (r *RemoteService) remoteProcess(
 	msg *message.Message,
 ) {
 	log := logger.Log.WithFields(map[string]interface{}{
-                        "route": route.String(),
-                        "uid": a.GetSession().UID(),
-                })
+		"route": route.String(),
+		"uid":   a.GetSession().UID(),
+	})
 	res, err := r.remoteCall(ctx, server, protos.RPCType_Sys, route, a.GetSession(), msg)
 	switch msg.Type {
 	case message.Request:
