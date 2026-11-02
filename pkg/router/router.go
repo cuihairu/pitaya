@@ -68,6 +68,9 @@ func (r *Router) defaultRoute(
 	for _, v := range servers {
 		srvList = append(srvList, v)
 	}
+	if len(srvList) == 0 {
+		return nil
+	}
 	server := srvList[rnd.Intn(len(srvList))]
 	return server
 }
@@ -89,12 +92,18 @@ func (r *Router) Route(
 	}
 	if rpcType == protos.RPCType_User {
 		server := r.defaultRoute(serversOfType)
+		if server == nil {
+			return nil, constants.ErrNoServersAvailableOfType
+		}
 		return server, nil
 	}
 	routeFunc, ok := r.routesMap[svType]
 	if !ok {
 		logger.Log.Debugf("no specific route for svType: %s, using default route", svType)
 		server := r.defaultRoute(serversOfType)
+		if server == nil {
+			return nil, constants.ErrNoServersAvailableOfType
+		}
 		return server, nil
 	}
 	return routeFunc(ctx, route, msg.Data, serversOfType)

@@ -119,3 +119,27 @@ func TestRouteFailIfNullServiceDiscovery(t *testing.T) {
 	})
 	assert.Equal(t, constants.ErrServiceDiscoveryNotInitialized, err)
 }
+
+func TestDefaultRouteEmptyServers(t *testing.T) {
+	t.Parallel()
+
+	router := New()
+	assert.Nil(t, router.defaultRoute(map[string]*cluster.Server{}))
+}
+
+func TestRouteNoServersAvailable(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	route := route.NewRoute(serverType, "service", "method")
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockServiceDiscovery := mocks.NewMockServiceDiscovery(ctrl)
+	mockServiceDiscovery.EXPECT().
+		GetServersByType(serverType).
+		Return(map[string]*cluster.Server{}, nil)
+	router := New()
+	router.SetServiceDiscovery(mockServiceDiscovery)
+	_, err := router.Route(ctx, protos.RPCType_User, serverType, route, &message.Message{Data: []byte{0x01}})
+	assert.Equal(t, constants.ErrNoServersAvailableOfType, err)
+}
