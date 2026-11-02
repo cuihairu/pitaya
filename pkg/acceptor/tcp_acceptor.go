@@ -122,6 +122,10 @@ func (a *TCPAcceptor) Stop() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.running = false
+	if a.listener == nil {
+		// Stop may be called before ListenAndServe has created the listener.
+		return
+	}
 	a.listener.Close()
 }
 

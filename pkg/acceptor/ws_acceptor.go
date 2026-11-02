@@ -184,6 +184,10 @@ func (w *WSAcceptor) Stop() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.running = false
+	if w.listener == nil {
+		// Stop may be called before ListenAndServe has created the listener.
+		return
+	}
 	err := w.listener.Close()
 	if err != nil {
 		logger.Log.Errorf("Failed to stop: %s", err.Error())

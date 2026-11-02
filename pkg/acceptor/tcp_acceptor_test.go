@@ -299,3 +299,13 @@ func TestGetNextMessageInParts(t *testing.T) {
 	assert.Equal(t, msg, append(part1, part2...))
 
 }
+
+func TestStopBeforeListen(t *testing.T) {
+	t.Parallel()
+
+	a := NewTCPAcceptor("127.0.0.1:0")
+	// Stop before ListenAndServe must not panic on a nil listener.
+	assert.NotPanics(t, a.Stop)
+	assert.False(t, a.running)
+	assert.Equal(t, "", a.GetAddr())
+}

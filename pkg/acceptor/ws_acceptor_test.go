@@ -285,3 +285,13 @@ func TestWSGetNextMessageSequentially(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, msg2, msg)
 }
+
+func TestWSStopBeforeListen(t *testing.T) {
+	t.Parallel()
+
+	w := NewWSAcceptor("127.0.0.1:0")
+	// Stop before ListenAndServe must not panic on a nil listener.
+	assert.NotPanics(t, w.Stop)
+	assert.False(t, w.running)
+	assert.Equal(t, "", w.GetAddr())
+}
