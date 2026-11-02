@@ -312,6 +312,10 @@ func (c *Client) handleServerMessages() {
 }
 
 func (c *Client) sendHeartbeats(interval int) {
+	if interval <= 0 {
+		// a non-positive heartbeat interval is invalid; NewTicker would panic
+		return
+	}
 	t := time.NewTicker(time.Duration(interval) * time.Second)
 	defer func() {
 		t.Stop()

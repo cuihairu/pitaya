@@ -46,3 +46,11 @@ func TestSendRequestShouldTimeout(t *testing.T) {
 
 	assert.Equal(t, true, msg.Err)
 }
+
+func TestSendHeartbeatsNonPositiveInterval(t *testing.T) {
+	c := &Client{}
+	// a non-positive heartbeat interval must be a no-op, not a panic in
+	// time.NewTicker
+	c.sendHeartbeats(0)
+	c.sendHeartbeats(-1)
+}
