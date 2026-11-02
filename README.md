@@ -1,7 +1,7 @@
 # pitaya
 
 <p align="center">
-  <a href="https://github.com/cuihairu/pitaya/releases"><img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status"></a>
+  <a href="https://github.com/cuihairu/pitaya/releases"><img src="https://img.shields.io/badge/status-in%20development-orange" alt="Status"></a> <a href="https://cuihairu.github.io/pitaya/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a>
   <a href="https://github.com/cuihairu/pitaya/actions/workflows/tests.yaml"><img src="https://github.com/cuihairu/pitaya/actions/workflows/tests.yaml/badge.svg" alt="Build Status"></a>
   <a href="https://coveralls.io/github/cuihairu/pitaya?branch=main"><img src="https://coveralls.io/repos/github/cuihairu/pitaya/badge.svg?branch=main" alt="Coverage Status"></a>
   <a href="https://pkg.go.dev/github.com/topfreegames/pitaya/v3"><img src="https://pkg.go.dev/badge/github.com/topfreegames/pitaya/v3.svg" alt="GoDoc"></a>
