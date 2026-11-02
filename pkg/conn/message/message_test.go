@@ -252,7 +252,7 @@ func TestDecodeRejectsUnterminatedMessageIDVarint(t *testing.T) {
 
 func TestEncodeDecodeFull64BitID(t *testing.T) {
 	enc := NewMessagesEncoder(false)
-	for _, id := range []uint{1 << 56, 1 << 60, 1<<63 - 1, 1 << 63} {
+	for _, id := range []uint64{1 << 56, 1 << 60, 1<<63 - 1, 1 << 63} {
 		msg := &Message{Type: Request, ID: id, Route: "a", Data: []byte{}}
 		data, err := enc.Encode(msg)
 		assert.NoError(t, err)

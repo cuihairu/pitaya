@@ -369,7 +369,7 @@ func TestHandlerServiceProcessPacketHeartbeat(t *testing.T) {
 }
 
 func TestHandlerServiceProcessPacketData(t *testing.T) {
-	msgID := uint(1)
+	msgID := uint64(1)
 	msg := &message.Message{Type: message.Request, ID: msgID, Data: []byte("ok")}
 	messageEncoder := message.NewMessagesEncoder(false)
 	encodedMsg, err := messageEncoder.Encode(msg)

@@ -289,7 +289,7 @@ func TestNatsRPCClientBuildRequest(t *testing.T) {
 	rt := route.NewRoute("sv", "svc", "method")
 
 	data := []byte("data")
-	messageID := uint(123)
+	messageID := uint64(123)
 	sessionID := int64(1)
 	uid := "uid"
 	data2 := []byte("data2")
@@ -420,7 +420,7 @@ func TestNatsRPCClientCall(t *testing.T) {
 
 	msg := &message.Message{
 		Type: message.Request,
-		ID:   uint(123),
+		ID:   uint64(123),
 		Data: []byte("data"),
 	}
 

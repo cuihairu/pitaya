@@ -128,7 +128,7 @@ func (a *Remote) Push(route string, v interface{}) error {
 }
 
 // ResponseMID reponds the message with mid to the user
-func (a *Remote) ResponseMID(ctx context.Context, mid uint, v interface{}, isError ...bool) error {
+func (a *Remote) ResponseMID(ctx context.Context, mid uint64, v interface{}, isError ...bool) error {
 	err := false
 	if len(isError) > 0 {
 		err = isError[0]

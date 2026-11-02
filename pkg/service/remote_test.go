@@ -714,7 +714,7 @@ func TestRemoteServiceRemoteProcess(t *testing.T) {
 			defer ctrl.Finish()
 
 			expectedMsg := &message.Message{
-				ID:    uint(rand.Int()),
+				ID:    uint64(rand.Int()),
 				Type:  table.msgType,
 				Route: rt.Short(),
 				Data:  []byte("ok"),

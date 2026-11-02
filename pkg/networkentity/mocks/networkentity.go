@@ -93,7 +93,7 @@ func (mr *MockNetworkEntityMockRecorder) RemoteAddr() *gomock.Call {
 }
 
 // ResponseMID mocks base method.
-func (m *MockNetworkEntity) ResponseMID(arg0 context.Context, arg1 uint, arg2 interface{}, arg3 ...bool) error {
+func (m *MockNetworkEntity) ResponseMID(arg0 context.Context, arg1 uint64, arg2 interface{}, arg3 ...bool) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1, arg2}
 	for _, a := range arg3 {

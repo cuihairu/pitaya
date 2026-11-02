@@ -192,19 +192,19 @@ func TestKickRemote(t *testing.T) {
 func TestAgentRemoteResponseMID(t *testing.T) {
 	tables := []struct {
 		name         string
-		mid          uint
+		mid          uint64
 		data         interface{}
 		msgErr       bool
 		errEncode    error
 		errSerialize error
 		err          error
 	}{
-		{"success_raw_message", uint(rand.Int()), []byte("ok"), false, nil, nil, nil},
-		{"success_struct_message", uint(rand.Int()), &someStruct{A: "ok"}, false, nil, nil, nil},
-		{"success_struct_message_with_error", uint(rand.Int()), &someStruct{A: "ok"}, true, nil, nil, nil},
-		{"failed_struct_message_serialize", uint(rand.Int()), &someStruct{A: "ok"}, false, nil, errors.New("failed serialize"), errors.New("failed serialize")},
-		{"failed_encode", uint(rand.Int()), &someStruct{A: "ok"}, false, errors.New("failed encode"), nil, errors.New("failed encode")},
-		{"failed_send", uint(rand.Int()), &someStruct{A: "ok"}, false, nil, nil, errors.New("failed send")},
+		{"success_raw_message", uint64(rand.Int()), []byte("ok"), false, nil, nil, nil},
+		{"success_struct_message", uint64(rand.Int()), &someStruct{A: "ok"}, false, nil, nil, nil},
+		{"success_struct_message_with_error", uint64(rand.Int()), &someStruct{A: "ok"}, true, nil, nil, nil},
+		{"failed_struct_message_serialize", uint64(rand.Int()), &someStruct{A: "ok"}, false, nil, errors.New("failed serialize"), errors.New("failed serialize")},
+		{"failed_encode", uint64(rand.Int()), &someStruct{A: "ok"}, false, errors.New("failed encode"), nil, errors.New("failed encode")},
+		{"failed_send", uint64(rand.Int()), &someStruct{A: "ok"}, false, nil, nil, errors.New("failed send")},
 		{"zero_mid", 0, nil, false, nil, nil, constants.ErrSessionOnNotify},
 	}
 
@@ -225,7 +225,7 @@ func TestAgentRemoteResponseMID(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, remote)
 
-			if table.mid != uint(0) {
+			if table.mid != uint64(0) {
 				serializeRet := []byte("ok")
 				if reflect.TypeOf(table.data) == reflect.TypeOf(([]byte)(nil)) {
 					serializeRet = table.data.([]byte)

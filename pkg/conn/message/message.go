@@ -70,7 +70,7 @@ var (
 // Message represents a unmarshaled message or a message which to be marshaled
 type Message struct {
 	Type       Type   // message type
-	ID         uint   // unique id, zero while notify mode
+	ID         uint64 // unique id, zero while notify mode
 	Route      string // route for locating service
 	Data       []byte // payload
 	compressed bool   // is message compressed

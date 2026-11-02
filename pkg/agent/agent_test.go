@@ -254,7 +254,7 @@ func TestAgentSendSerializeErr(t *testing.T) {
 		ctx:     ctx,
 		typ:     message.Response,
 		route:   uuid.New().String(),
-		mid:     uint(rand.Int()),
+		mid:     uint64(rand.Int()),
 		payload: someStruct{A: "bla"},
 	}
 	expectedErr := errors.New("noo")
@@ -502,16 +502,16 @@ func TestAgentResponseMIDFailsIfClosedAgent(t *testing.T) {
 func TestAgentResponseMID(t *testing.T) {
 	tables := []struct {
 		name   string
-		mid    uint
+		mid    uint64
 		data   interface{}
 		msgErr bool
 		err    error
 	}{
-		{"success_raw", uint(rand.Int()), []byte("ok"), false, nil},
-		{"success_raw_msg_err", uint(rand.Int()), []byte("ok"), true, nil},
-		{"success_struct", uint(rand.Int()), &someStruct{A: "ok"}, false, nil},
+		{"success_raw", uint64(rand.Int()), []byte("ok"), false, nil},
+		{"success_raw_msg_err", uint64(rand.Int()), []byte("ok"), true, nil},
+		{"success_struct", uint64(rand.Int()), &someStruct{A: "ok"}, false, nil},
 		{"failure_empty_mid", 0, []byte("ok"), false, constants.ErrSessionOnNotify},
-		{"failure_send", uint(rand.Int()), []byte("ok"), false, e.NewError(
+		{"failure_send", uint64(rand.Int()), []byte("ok"), false, e.NewError(
 			fmt.Errorf("%s: send on closed channel", constants.ErrBrokenPipe.Error()),
 			e.ErrClientClosedRequest,
 		)},
@@ -924,7 +924,7 @@ func TestAnswerWithError(t *testing.T) {
 			mockSerializer.EXPECT().Unmarshal(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockEncoder.EXPECT().Encode(packet.Type(packet.Data), gomock.Any()).Return(nil, row.encoderErr).AnyTimes()
 
-			ag.AnswerWithError(nil, uint(rand.Int()), row.answeredErr)
+			ag.AnswerWithError(nil, uint64(rand.Int()), row.answeredErr)
 			if row.expectedErr != nil {
 				pWrite := helpers.ShouldEventuallyReceive(t, ag.chSend)
 				assert.Equal(t, pendingWrite{err: row.expectedErr}, pWrite)
@@ -1003,7 +1003,7 @@ func TestAgentAnswerWithError(t *testing.T) {
 			ag := newAgent(nil, nil, encoder, row.serializer, time.Second, time.Second, 1, nil, messageEncoder, nil, sessionPool).(*agentImpl)
 			assert.NotNil(t, ag)
 
-			ag.AnswerWithError(nil, uint(rand.Int()), row.answeredErr)
+			ag.AnswerWithError(nil, uint64(rand.Int()), row.answeredErr)
 
 			pWrite := helpers.ShouldEventuallyReceive(t, ag.chSend)
 			assert.Equal(t, row.expectedErr, pWrite.(pendingWrite).err)
@@ -1408,7 +1408,7 @@ func TestAgentResponseMIDPreservesErrorCodeWithCompression(t *testing.T) {
 		Return([]byte("encoded-packet"), nil)
 
 	ctx := getCtxWithRequestKeys()
-	require.NoError(t, ag.ResponseMID(ctx, uint(42), payload, true))
+	require.NoError(t, ag.ResponseMID(ctx, uint64(42), payload, true))
 
 	recv := helpers.ShouldEventuallyReceive(t, ag.chSend).(pendingWrite)
 	require.NotNil(t, recv.err,

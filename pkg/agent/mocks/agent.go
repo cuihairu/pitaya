@@ -39,7 +39,7 @@ func (m *MockAgent) EXPECT() *MockAgentMockRecorder {
 }
 
 // AnswerWithError mocks base method.
-func (m *MockAgent) AnswerWithError(arg0 context.Context, arg1 uint, arg2 error) {
+func (m *MockAgent) AnswerWithError(arg0 context.Context, arg1 uint64, arg2 error) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "AnswerWithError", arg0, arg1, arg2)
 }
@@ -161,7 +161,7 @@ func (mr *MockAgentMockRecorder) RemoteAddr() *gomock.Call {
 }
 
 // ResponseMID mocks base method.
-func (m *MockAgent) ResponseMID(arg0 context.Context, arg1 uint, arg2 interface{}, arg3 ...bool) error {
+func (m *MockAgent) ResponseMID(arg0 context.Context, arg1 uint64, arg2 interface{}, arg3 ...bool) error {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1, arg2}
 	for _, a := range arg3 {

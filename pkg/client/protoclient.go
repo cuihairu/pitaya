@@ -476,7 +476,7 @@ func (pc *ProtoClient) AddPushResponse(route string, protoName string) {
 }
 
 // SendRequest sends a request to the server
-func (pc *ProtoClient) SendRequest(route string, data []byte) (uint, error) {
+func (pc *ProtoClient) SendRequest(route string, data []byte) (uint64, error) {
 
 	if !pc.ready {
 		return pc.Client.SendRequest(route, data)

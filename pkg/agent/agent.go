@@ -94,7 +94,7 @@ type (
 		ctx     context.Context
 		typ     message.Type // message type
 		route   string       // message route (push)
-		mid     uint         // response message id (response)
+		mid     uint64       // response message id (response)
 		payload interface{}  // payload
 		err     bool         // if its an error message
 	}
@@ -109,7 +109,7 @@ type (
 	Agent interface {
 		GetSession() session.Session
 		Push(route string, v interface{}) error
-		ResponseMID(ctx context.Context, mid uint, v interface{}, isError ...bool) error
+		ResponseMID(ctx context.Context, mid uint64, v interface{}, isError ...bool) error
 		Close() error
 		RemoteAddr() net.Addr
 		String() string
@@ -122,7 +122,7 @@ type (
 		SendHandshakeResponse() error
 		SendHandshakeErrorResponse() error
 		SendRequest(ctx context.Context, serverID, route string, v interface{}) (*protos.Response, error)
-		AnswerWithError(ctx context.Context, mid uint, err error)
+		AnswerWithError(ctx context.Context, mid uint64, err error)
 	}
 
 	// AgentFactory factory for creating Agent instances
@@ -344,7 +344,7 @@ func (a *agentImpl) Push(route string, v interface{}) error {
 
 // ResponseMID implementation for NetworkEntity interface
 // Respond message to session
-func (a *agentImpl) ResponseMID(ctx context.Context, mid uint, v interface{}, isError ...bool) error {
+func (a *agentImpl) ResponseMID(ctx context.Context, mid uint64, v interface{}, isError ...bool) error {
 	err := false
 	if len(isError) > 0 {
 		err = isError[0]
@@ -610,7 +610,7 @@ func (a *agentImpl) SendRequest(ctx context.Context, serverID, route string, v i
 }
 
 // AnswerWithError answers with an error
-func (a *agentImpl) AnswerWithError(ctx context.Context, mid uint, err error) {
+func (a *agentImpl) AnswerWithError(ctx context.Context, mid uint64, err error) {
 	var e error
 	defer func() {
 		if e != nil {

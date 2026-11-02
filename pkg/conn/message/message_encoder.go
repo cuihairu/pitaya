@@ -144,7 +144,7 @@ func Decode(data []byte) (*Message, error) {
 	}
 
 	if m.Type == Request || m.Type == Response {
-		id := uint(0)
+		id := uint64(0)
 		// little end byte order
 		// WARNING: id must be stored in 64 bits integer
 		// varint length encode
@@ -161,7 +161,7 @@ func Decode(data []byte) (*Message, error) {
 			if varintLen == 9 && b > 1 {
 				return nil, ErrInvalidMessage
 			}
-			id += uint(b&0x7F) << uint(7*varintLen)
+			id += uint64(b&0x7F) << uint(7*varintLen)
 			varintLen++
 			if b < 128 {
 				offset = i + 1

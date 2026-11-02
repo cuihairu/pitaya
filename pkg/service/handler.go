@@ -364,7 +364,7 @@ func (h *HandlerService) processMessage(a agent.Agent, msg *message.Message) {
 }
 
 func (h *HandlerService) localProcess(ctx context.Context, a agent.Agent, route *route.Route, msg *message.Message) {
-	var mid uint
+	var mid uint64
 	switch msg.Type {
 	case message.Request:
 		mid = msg.ID

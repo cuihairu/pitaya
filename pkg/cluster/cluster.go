@@ -114,11 +114,11 @@ func buildRequest(
 	}
 
 	if rpcType == protos.RPCType_Sys {
-		mid := uint(0)
+		mid := uint64(0)
 		if msg.Type == message.Request {
 			mid = msg.ID
 		}
-		req.Msg.Id = uint64(mid)
+		req.Msg.Id = mid
 		req.Session = &protos.Session{
 			Id:   session.ID(),
 			Uid:  session.UID(),

@@ -73,7 +73,7 @@ type Client struct {
 	packetChan          chan *packet.Packet
 	IncomingMsgChan     chan *message.Message
 	pendingChan         chan bool
-	pendingRequests     map[uint]*pendingRequest
+	pendingRequests     map[uint64]*pendingRequest
 	pendingReqMutex     sync.Mutex
 	requestTimeout      time.Duration
 	closeChan           chan struct{}
@@ -110,7 +110,7 @@ func New(logLevel logrus.Level, requestTimeout ...time.Duration) *Client {
 		packetEncoder:   codec.NewPomeloPacketEncoder(),
 		packetDecoder:   codec.NewPomeloPacketDecoder(),
 		packetChan:      make(chan *packet.Packet, 10),
-		pendingRequests: make(map[uint]*pendingRequest),
+		pendingRequests: make(map[uint64]*pendingRequest),
 		requestTimeout:  reqTimeout,
 		// 30 here is the limit of inflight messages
 		// TODO this should probably be configurable
@@ -413,7 +413,7 @@ func (c *Client) handleHandshake() error {
 }
 
 // SendRequest sends a request to the server
-func (c *Client) SendRequest(route string, data []byte) (uint, error) {
+func (c *Client) SendRequest(route string, data []byte) (uint64, error) {
 	return c.sendMsg(message.Request, route, data)
 }
 
@@ -437,11 +437,11 @@ func (c *Client) buildPacket(msg message.Message) ([]byte, error) {
 }
 
 // sendMsg sends the request to the server
-func (c *Client) sendMsg(msgType message.Type, route string, data []byte) (uint, error) {
+func (c *Client) sendMsg(msgType message.Type, route string, data []byte) (uint64, error) {
 	// TODO mount msg and encode
 	m := message.Message{
 		Type:  msgType,
-		ID:    uint(atomic.AddUint32(&c.nextID, 1)),
+		ID:    uint64(atomic.AddUint32(&c.nextID, 1)),
 		Route: route,
 		Data:  data,
 		Err:   false,

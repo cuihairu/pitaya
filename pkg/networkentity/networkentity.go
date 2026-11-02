@@ -10,7 +10,7 @@ import (
 // NetworkEntity represent low-level network instance
 type NetworkEntity interface {
 	Push(route string, v interface{}) error
-	ResponseMID(ctx context.Context, mid uint, v interface{}, isError ...bool) error
+	ResponseMID(ctx context.Context, mid uint64, v interface{}, isError ...bool) error
 	Close() error
 	Kick(ctx context.Context) error
 	RemoteAddr() net.Addr
