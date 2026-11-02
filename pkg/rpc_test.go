@@ -97,3 +97,14 @@ func TestDoSendRPC(t *testing.T) {
 		})
 	}
 }
+
+func TestDoSendRPCNilReply(t *testing.T) {
+	config := config.NewDefaultPitayaConfig()
+	app := NewDefaultApp(true, "testtype", Cluster, map[string]string{}, *config).(*App)
+	app.server.ID = "myserver"
+	app.rpcServer = &cluster.NatsRPCServer{}
+	// a nil reply must yield ErrReplyShouldBePtr instead of panicking on
+	// reflect.TypeOf(nil).Kind()
+	err := app.doSendRPC(nil, "myserver", "testtype.service.method", nil, nil)
+	assert.Equal(t, constants.ErrReplyShouldBePtr, err)
+}
