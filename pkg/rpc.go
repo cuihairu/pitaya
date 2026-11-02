@@ -69,6 +69,12 @@ func (app *App) doSendRPC(ctx context.Context, serverID, routeStr string, reply 
 	if reply == nil || reflect.TypeOf(reply).Kind() != reflect.Ptr {
 		return constants.ErrReplyShouldBePtr
 	}
+	// A typed nil pointer (e.g. (*pb.Response)(nil) stored in a proto.Message)
+	// is non-nil to the interface but still has no underlying value; proto
+	// Unmarshal would dereference it and panic. Reject it up front.
+	if reflect.ValueOf(reply).IsNil() {
+		return constants.ErrReplyShouldBePtr
+	}
 
 	r, err := route.Decode(routeStr)
 	if err != nil {

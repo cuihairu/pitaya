@@ -108,3 +108,15 @@ func TestDoSendRPCNilReply(t *testing.T) {
 	err := app.doSendRPC(nil, "myserver", "testtype.service.method", nil, nil)
 	assert.Equal(t, constants.ErrReplyShouldBePtr, err)
 }
+
+func TestDoSendRPCTypedNilReply(t *testing.T) {
+	config := config.NewDefaultPitayaConfig()
+	app := NewDefaultApp(true, "testtype", Cluster, map[string]string{}, *config).(*App)
+	app.server.ID = "myserver"
+	app.rpcServer = &cluster.NatsRPCServer{}
+	// A typed nil pointer reply (non-nil interface, nil underlying value) must
+	// yield ErrReplyShouldBePtr instead of panicking in proto.Unmarshal.
+	var reply *protos.Response
+	err := app.doSendRPC(nil, "myserver", "testtype.service.method", reply, nil)
+	assert.Equal(t, constants.ErrReplyShouldBePtr, err)
+}
