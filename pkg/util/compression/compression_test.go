@@ -1,7 +1,6 @@
 package compression
 
 import (
-	"flag"
 	"path/filepath"
 	"testing"
 
@@ -9,8 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/topfreegames/pitaya/v3/pkg/helpers"
 )
-
-var update = flag.Bool("update", false, "update .golden files")
 
 var ins = []struct {
 	name string
@@ -26,14 +23,13 @@ func TestCompressionDeflate(t *testing.T) {
 		t.Run(in.name, func(t *testing.T) {
 			b, err := DeflateData([]byte(in.data))
 			require.NoError(t, err)
-			gp := filepath.Join("fixtures", in.name+".golden")
-			if *update {
-				t.Log("updating golden file")
-				helpers.WriteFile(t, gp, b)
-			}
-			expected := helpers.ReadFile(t, gp)
 
-			assert.Equal(t, expected, b)
+			// zlib output size and byte layout vary by Go version, so assert
+			// the round-trip property (deflated bytes inflate back to the
+			// original) instead of exact golden bytes.
+			result, err := InflateData(b)
+			require.NoError(t, err)
+			assert.Equal(t, in.data, string(result))
 		})
 	}
 }
@@ -60,4 +56,17 @@ func TestCompressionInflateIncorrectData(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 	})
+}
+
+func TestCompressionInflateZipBombRejected(t *testing.T) {
+	// A highly compressible payload larger than MaxInflatedSize must be
+	// rejected instead of inflated into an unbounded allocation.
+	big := make([]byte, MaxInflatedSize+1)
+	b, err := DeflateData(big)
+	require.NoError(t, err)
+	require.Less(t, len(b), len(big)/100, "test sanity: big zero buffer should compress small")
+
+	result, err := InflateData(b)
+	require.Error(t, err)
+	assert.Nil(t, result)
 }
