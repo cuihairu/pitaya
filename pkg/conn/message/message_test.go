@@ -70,22 +70,31 @@ func TestEncode(t *testing.T) {
 	for name, table := range encodeTables {
 		t.Run(name, func(t *testing.T) {
 			message := table.message
+			originalData := append([]byte(nil), message.Data...)
 			SetDictionary(table.routes)
 
 			messageEncoder := NewMessagesEncoder(table.gzip == 0x10)
 			result, err := messageEncoder.Encode(message)
-			gp := filepath.Join("fixtures", name+".golden")
-
-			if *update {
-				t.Log("updating golden file")
-				helpers.WriteFile(t, gp, result)
-			}
-
-			expected := helpers.ReadFile(t, gp)
 
 			if err == nil {
-				assert.Equal(t, table.gzip, expected[0]&gzipMask)
-				assert.Equal(t, expected, result)
+				if table.gzip == 0x10 {
+					// zlib output bytes vary across Go versions, so the
+					// compressed payload must be verified by round-trip
+					// (decode back to the original data) rather than exact
+					// golden bytes.
+					assert.Equal(t, byte(0x10), result[0]&gzipMask)
+					decoded, derr := Decode(result)
+					assert.NoError(t, derr)
+					assert.Equal(t, originalData, decoded.Data)
+				} else {
+					gp := filepath.Join("fixtures", name+".golden")
+					if *update {
+						t.Log("updating golden file")
+						helpers.WriteFile(t, gp, result)
+					}
+					expected := helpers.ReadFile(t, gp)
+					assert.Equal(t, expected, result)
+				}
 			} else {
 				assert.Nil(t, result)
 			}
@@ -237,6 +246,26 @@ func TestDecodeRejectsUnterminatedMessageIDVarint(t *testing.T) {
 	// Request (type 0) whose ID varint never terminates before the payload
 	// ends; the decoder must not swallow the whole payload silently.
 	data := []byte{0x00, 0x80, 0x80}
+	_, err := Decode(data)
+	assert.EqualError(t, err, ErrInvalidMessage.Error())
+}
+
+func TestEncodeDecodeFull64BitID(t *testing.T) {
+	enc := NewMessagesEncoder(false)
+	for _, id := range []uint{1 << 56, 1 << 60, 1<<63 - 1, 1 << 63} {
+		msg := &Message{Type: Request, ID: id, Route: "a", Data: []byte{}}
+		data, err := enc.Encode(msg)
+		assert.NoError(t, err)
+		decoded, err := Decode(data)
+		assert.NoError(t, err)
+		assert.Equal(t, id, decoded.ID)
+	}
+}
+
+func TestDecodeRejectsOverflowingMessageIDVarint(t *testing.T) {
+	// A 10th varint byte carrying more than bit 63 would overflow the 64-bit
+	// id; the decoder must reject it rather than wrap the id around.
+	data := []byte{0x00, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02, 0x00}
 	_, err := Decode(data)
 	assert.EqualError(t, err, ErrInvalidMessage.Error())
 }

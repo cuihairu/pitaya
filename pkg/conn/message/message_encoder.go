@@ -151,10 +151,14 @@ func Decode(data []byte) (*Message, error) {
 		varintLen := 0
 		for i := offset; i < len(data); i++ {
 			b := data[i]
-			// A 64-bit id needs at most 8 varint bytes; a 9th continuation
-			// byte would exceed the id width and let a malformed message
-			// swallow the entire payload.
-			if varintLen >= 8 {
+			// A 64-bit id needs at most 10 varint bytes (10*7=70 bits, but the
+			// 10th byte may only carry bit 63). Reject anything longer, and
+			// reject a 10th byte that would overflow the 64-bit id, so a
+			// malformed message cannot swallow the payload or wrap around.
+			if varintLen >= 10 {
+				return nil, ErrInvalidMessage
+			}
+			if varintLen == 9 && b > 1 {
 				return nil, ErrInvalidMessage
 			}
 			id += uint(b&0x7F) << uint(7*varintLen)
