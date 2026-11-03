@@ -77,7 +77,7 @@ type Client struct {
 	pendingReqMutex     sync.Mutex
 	requestTimeout      time.Duration
 	closeChan           chan struct{}
-	nextID              uint32
+	nextID              uint64
 	messageEncoder      message.Encoder
 	clientHandshakeData *session.HandshakeData
 }
@@ -439,9 +439,15 @@ func (c *Client) buildPacket(msg message.Message) ([]byte, error) {
 // sendMsg sends the request to the server
 func (c *Client) sendMsg(msgType message.Type, route string, data []byte) (uint64, error) {
 	// TODO mount msg and encode
+	// Message ID 0 is the "notify" sentinel (see message.Message.ID), so skip
+	// it on the (astronomically rare) wraparound of the 64-bit counter.
+	id := atomic.AddUint64(&c.nextID, 1)
+	if id == 0 {
+		id = atomic.AddUint64(&c.nextID, 1)
+	}
 	m := message.Message{
 		Type:  msgType,
-		ID:    uint64(atomic.AddUint32(&c.nextID, 1)),
+		ID:    id,
 		Route: route,
 		Data:  data,
 		Err:   false,

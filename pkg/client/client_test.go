@@ -1,6 +1,7 @@
 package client
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -53,4 +54,28 @@ func TestSendHeartbeatsNonPositiveInterval(t *testing.T) {
 	// time.NewTicker
 	c.sendHeartbeats(0)
 	c.sendHeartbeats(-1)
+}
+
+func TestSendRequestIDWraparoundSkipsZero(t *testing.T) {
+	c := New(logrus.InfoLevel)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConn := mocks.NewMockPlayerConn(ctrl)
+	mockConn.EXPECT().Write(gomock.Any()).Return(16, nil).Times(2)
+	c.conn = mockConn
+	c.closeChan = make(chan struct{})
+
+	// Preload the counter so the next increment wraps to 0, the sentinel
+	// "notify" ID. sendMsg must detect this and skip to 1.
+	c.nextID = math.MaxUint64
+
+	id, err := c.sendMsg(message.Request, "test.route", []byte{0x01})
+	assert.NoError(t, err)
+	assert.NotEqual(t, uint64(0), id, "request ID must never be 0")
+	assert.Equal(t, uint64(1), id)
+
+	id, err = c.sendMsg(message.Request, "test.route", []byte{0x02})
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(2), id)
 }
