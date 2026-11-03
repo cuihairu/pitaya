@@ -97,7 +97,6 @@ type sessionImpl struct {
 	encodedData         []byte                                // session data encoded as a byte array
 	OnCloseCallbacks    []func()                              //onClose callbacks
 	IsFrontend          bool                                  // if session is a frontend session
-	frontendCounted     bool                                  // session was created as frontend (SessionCount accounting is fixed at construction)
 	frontendID          string                                // the id of the frontend that owns the session
 	frontendSessionID   int64                                 // the id of the session on the frontend server
 	Subscriptions       []*nats.Subscription                  // subscription created on bind when using nats rpc server
@@ -194,7 +193,6 @@ func (pool *sessionPoolImpl) NewSession(entity networkentity.NetworkEntity, fron
 		lastTime:            time.Now().Unix(),
 		OnCloseCallbacks:    []func(){},
 		IsFrontend:          frontend,
-		frontendCounted:     frontend,
 		pool:                pool,
 		requestsInFlight:    ReqInFlight{m: make(map[string]string), mu: &sync.RWMutex{}},
 		logger:              logger.Log,
@@ -372,7 +370,22 @@ func (s *sessionImpl) SetOnCloseCallbacks(callbacks []func()) {
 func (s *sessionImpl) SetIsFrontend(isFrontend bool) {
 	s.Lock()
 	defer s.Unlock()
+	if atomic.LoadInt32(&s.closed) != 0 {
+		// A closed session must not be re-registered or recounted.
+		return
+	}
+	if s.IsFrontend == isFrontend {
+		return
+	}
 	s.IsFrontend = isFrontend
+
+	if isFrontend {
+		s.pool.sessionsByID.Store(s.ID(), s)
+		atomic.AddInt64(&s.pool.SessionCount, 1)
+	} else {
+		s.pool.sessionsByID.Delete(s.ID())
+		atomic.AddInt64(&s.pool.SessionCount, -1)
+	}
 }
 
 // SetSubscriptions ...
@@ -540,10 +553,13 @@ func (s *sessionImpl) Close() {
 		// already closed; SessionCount and entity must not be touched twice
 		return
 	}
-	// Only sessions created as frontend are counted in SessionCount (see
-	// NewSession). frontendCounted is fixed at construction, so flipping
-	// IsFrontend via SetIsFrontend must not disturb the counter.
-	if s.frontendCounted {
+	// SetIsFrontend keeps SessionCount and sessionsByID synchronized with
+	// IsFrontend, so every current frontend session is decremented exactly once.
+	s.RLock()
+	isFrontend := s.IsFrontend
+	subs := s.Subscriptions
+	s.RUnlock()
+	if isFrontend {
 		atomic.AddInt64(&s.pool.SessionCount, -1)
 	}
 	s.pool.sessionsByID.Delete(s.ID())
@@ -555,10 +571,6 @@ func (s *sessionImpl) Close() {
 		}
 	}
 	// TODO: this logic should be moved to nats rpc server
-	s.RLock()
-	isFrontend := s.IsFrontend
-	subs := s.Subscriptions
-	s.RUnlock()
 	if isFrontend && subs != nil && len(subs) > 0 {
 		// if the user is bound to an userid and nats rpc server is being used we need to unsubscribe
 		for _, sub := range subs {

@@ -1565,7 +1565,12 @@ func TestSessionCloseFrontendAfterSetIsFrontendFalse(t *testing.T) {
 
 	pool := NewSessionPool().(*sessionPoolImpl)
 	s := pool.NewSession(entity, true)
+	assert.Equal(t, int64(1), pool.GetSessionCount())
 	s.SetIsFrontend(false)
+	// SessionCount and sessionsByID must track IsFrontend immediately, so a
+	// flipped frontend session is no longer counted or registered.
+	assert.Equal(t, int64(0), pool.GetSessionCount())
+	assert.Nil(t, pool.GetSessionByID(s.ID()))
 	s.Close()
 
 	assert.Equal(t, int64(0), pool.GetSessionCount())
@@ -1579,10 +1584,49 @@ func TestSessionCloseBackendAfterSetIsFrontendTrue(t *testing.T) {
 
 	pool := NewSessionPool().(*sessionPoolImpl)
 	s := pool.NewSession(entity, false)
+	assert.Equal(t, int64(0), pool.GetSessionCount())
 	s.SetIsFrontend(true)
+	assert.Equal(t, int64(1), pool.GetSessionCount())
+	assert.NotNil(t, pool.GetSessionByID(s.ID()))
 	s.Close()
 
 	assert.Equal(t, int64(0), pool.GetSessionCount())
+}
+
+// TestSessionSetIsFrontendConsistent covers the divergence between the
+// construction-time count and the mutable IsFrontend flag: a backend session
+// flipped to frontend must be counted, registered by ID, and treated as a
+// frontend by Bind (stored in sessionsByUID) — and a frontend session flipped
+// to backend must be deregistered and not counted, while still cleaning up
+// subscriptions on the backend path.
+func TestSessionSetIsFrontendConsistent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	pool := NewSessionPool().(*sessionPoolImpl)
+
+	// Backend session flipped to frontend: Bind should route as frontend and
+	// register the UID, count must be 1, and GetSessionByID must find it.
+	backend := pool.NewSession(nil, false)
+	backend.SetIsFrontend(true)
+	assert.Equal(t, int64(1), pool.GetSessionCount())
+	assert.NotNil(t, pool.GetSessionByID(backend.ID()))
+
+	uid := uuid.New().String()
+	assert.NoError(t, backend.Bind(context.Background(), uid))
+	assert.Equal(t, backend, pool.GetSessionByUID(uid))
+
+	// Frontend session flipped to backend: deregistered and uncounted, so
+	// Close must not drive the counter negative.
+	entity := mocks.NewMockNetworkEntity(ctrl)
+	entity.EXPECT().Close().Times(1)
+	frontend := pool.NewSession(entity, true)
+	assert.Equal(t, int64(2), pool.GetSessionCount())
+	frontend.SetIsFrontend(false)
+	assert.Equal(t, int64(1), pool.GetSessionCount())
+	assert.Nil(t, pool.GetSessionByID(frontend.ID()))
+
+	frontend.Close()
+	assert.Equal(t, int64(1), pool.GetSessionCount())
 }
 
 func TestSessionConcurrentBind(t *testing.T) {
