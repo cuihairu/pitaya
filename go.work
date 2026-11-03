@@ -1,6 +1,10 @@
-go 1.25.4
+toolchain go1.27.3
+
+go 1.26.0
 
 use (
 	.
 	./xk6-pitaya
 )
+
+replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
