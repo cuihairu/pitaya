@@ -35,6 +35,6 @@ type PitayaClient interface {
 	Disconnect()
 	MsgChannel() chan *message.Message
 	SendNotify(route string, data []byte) error
-	SendRequest(route string, data []byte) (uint, error)
+	SendRequest(route string, data []byte) (uint64, error)
 	SetClientHandshakeData(data *session.HandshakeData)
 }
