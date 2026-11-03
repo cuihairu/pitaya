@@ -1659,3 +1659,40 @@ func TestSessionPushToFrontConcurrentWithMutations(t *testing.T) {
 	}
 	<-done
 }
+
+func TestSessionSetIsFrontendConcurrent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	// PushToFront on a backend session invokes SendRequest; allow any number
+	// of calls so the IsFrontend read in PushToFront is exercised concurrently
+	// with SetIsFrontend writes.
+	mockEntity := mocks.NewMockNetworkEntity(ctrl)
+	mockEntity.EXPECT().
+		SendRequest(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&protos.Response{}, nil).
+		AnyTimes()
+
+	sessionPool := NewSessionPool().(*sessionPoolImpl)
+	ss := sessionPool.NewSession(mockEntity, true).(*sessionImpl)
+	ss.SetFrontendData("frontend-1", 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 200; i++ {
+			ss.SetIsFrontend(i%2 == 0)
+		}
+	}()
+
+	for i := 0; i < 200; i++ {
+		_ = ss.GetIsFrontend()
+		// PushToFront reads IsFrontend without the lock on the pre-fix path;
+		// exercise it alongside SetIsFrontend writes.
+		if i%2 == 0 {
+			_ = ss.PushToFront(context.Background())
+		} else {
+			_ = ss.OnClose(func() {})
+		}
+	}
+	<-done
+}

@@ -353,6 +353,8 @@ func (s *sessionImpl) GetOnCloseCallbacks() []func() {
 
 // GetIsFrontend ...
 func (s *sessionImpl) GetIsFrontend() bool {
+	s.RLock()
+	defer s.RUnlock()
 	return s.IsFrontend
 }
 
@@ -368,6 +370,8 @@ func (s *sessionImpl) SetOnCloseCallbacks(callbacks []func()) {
 
 // SetIsFrontend ...
 func (s *sessionImpl) SetIsFrontend(isFrontend bool) {
+	s.Lock()
+	defer s.Unlock()
 	s.IsFrontend = isFrontend
 }
 
@@ -471,7 +475,10 @@ func (s *sessionImpl) Bind(ctx context.Context, uid string) error {
 	}
 
 	// if code running on frontend server
-	if s.IsFrontend {
+	s.RLock()
+	isFrontend := s.IsFrontend
+	s.RUnlock()
+	if isFrontend {
 		// If a session with the same UID already exists in this frontend server, close it
 		if val, ok := s.pool.sessionsByUID.Load(uid); ok {
 			s.logger.Warn("A session for this UID %s already existed in this frontend, on session ID %v closing it", val.(Session).ID())
@@ -517,6 +524,8 @@ func (s *sessionImpl) Kick(ctx context.Context) error {
 // OnClose adds the function it receives to the callbacks that will be called
 // when the session is closed
 func (s *sessionImpl) OnClose(c func()) error {
+	s.Lock()
+	defer s.Unlock()
 	if !s.IsFrontend {
 		return constants.ErrOnCloseBackend
 	}
@@ -546,9 +555,13 @@ func (s *sessionImpl) Close() {
 		}
 	}
 	// TODO: this logic should be moved to nats rpc server
-	if s.IsFrontend && s.Subscriptions != nil && len(s.Subscriptions) > 0 {
+	s.RLock()
+	isFrontend := s.IsFrontend
+	subs := s.Subscriptions
+	s.RUnlock()
+	if isFrontend && subs != nil && len(subs) > 0 {
 		// if the user is bound to an userid and nats rpc server is being used we need to unsubscribe
-		for _, sub := range s.Subscriptions {
+		for _, sub := range subs {
 			err := sub.Drain()
 			if err != nil {
 				s.logger.Errorf("error unsubscribing to user's messages channel: %s, this can cause performance and leak issues", err.Error())
@@ -839,7 +852,10 @@ func (s *sessionImpl) bindInFront(ctx context.Context) error {
 
 // PushToFront updates the session in the frontend
 func (s *sessionImpl) PushToFront(ctx context.Context) error {
-	if s.IsFrontend {
+	s.RLock()
+	isFrontend := s.IsFrontend
+	s.RUnlock()
+	if isFrontend {
 		return constants.ErrFrontSessionCantPushToFront
 	}
 	return s.sendRequestToFront(ctx, constants.SessionPushRoute, true)
