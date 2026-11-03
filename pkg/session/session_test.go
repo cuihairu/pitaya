@@ -1627,6 +1627,24 @@ func TestSessionSetIsFrontendConsistent(t *testing.T) {
 
 	frontend.Close()
 	assert.Equal(t, int64(1), pool.GetSessionCount())
+
+	// A frontend session that is already bound must be removed from
+	// sessionsByUID when flipped to backend, so GetSessionByUID and
+	// GetSessionByID stay consistent with SessionCount.
+	uid2 := uuid.New().String()
+	bound := pool.NewSession(nil, true)
+	assert.NoError(t, bound.Bind(context.Background(), uid2))
+	assert.Equal(t, bound, pool.GetSessionByUID(uid2))
+	assert.Equal(t, int64(2), pool.GetSessionCount())
+	bound.SetIsFrontend(false)
+	assert.Nil(t, pool.GetSessionByUID(uid2))
+	assert.Nil(t, pool.GetSessionByID(bound.ID()))
+	assert.Equal(t, int64(1), pool.GetSessionCount())
+	// Re-promoting a bound session must restore all three views.
+	bound.SetIsFrontend(true)
+	assert.Equal(t, bound, pool.GetSessionByUID(uid2))
+	assert.Equal(t, bound, pool.GetSessionByID(bound.ID()))
+	assert.Equal(t, int64(2), pool.GetSessionCount())
 }
 
 func TestSessionConcurrentBind(t *testing.T) {
@@ -1707,36 +1725,69 @@ func TestSessionPushToFrontConcurrentWithMutations(t *testing.T) {
 func TestSessionSetIsFrontendConcurrent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	// PushToFront on a backend session invokes SendRequest; allow any number
-	// of calls so the IsFrontend read in PushToFront is exercised concurrently
-	// with SetIsFrontend writes.
+	// PushToFront on a backend session invokes SendRequest, and Kick/Close on a
+	// frontend entity invokes Push/Close. Allow any number of calls so these
+	// operations can race SetIsFrontend and the callback/subscription mutations
+	// without being blocked by test expectations.
 	mockEntity := mocks.NewMockNetworkEntity(ctrl)
 	mockEntity.EXPECT().
 		SendRequest(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&protos.Response{}, nil).
 		AnyTimes()
+	mockEntity.EXPECT().Push(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockEntity.EXPECT().Kick(gomock.Any()).Return(nil).AnyTimes()
+	mockEntity.EXPECT().Close().Return(nil).AnyTimes()
 
 	sessionPool := NewSessionPool().(*sessionPoolImpl)
 	ss := sessionPool.NewSession(mockEntity, true).(*sessionImpl)
 	ss.SetFrontendData("frontend-1", 1)
+	uid := uuid.New().String()
 
+	// Close wins exactly once; keep other workers running for enough overlap
+	// while tolerating post-Close failures that only indicate the session is
+	// already closed (Kick pushes before closing).
 	done := make(chan struct{})
+	var wg sync.WaitGroup
 	go func() {
-		defer close(done)
 		for i := 0; i < 200; i++ {
 			ss.SetIsFrontend(i%2 == 0)
 		}
 	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			ss.SetSubscriptions([]*nats.Subscription{})
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			_ = ss.Kick(context.Background())
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			_ = ss.Bind(context.Background(), uid)
+		}
+	}()
+
 	for i := 0; i < 200; i++ {
 		_ = ss.GetIsFrontend()
-		// PushToFront reads IsFrontend without the lock on the pre-fix path;
-		// exercise it alongside SetIsFrontend writes.
 		if i%2 == 0 {
 			_ = ss.PushToFront(context.Background())
 		} else {
 			_ = ss.OnClose(func() {})
 		}
 	}
-	<-done
+
+	ss.Close()
+	wg.Wait()
+	close(done)
 }

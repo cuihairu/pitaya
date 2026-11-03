@@ -2,6 +2,7 @@ package client
 
 import (
 	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -78,4 +79,49 @@ func TestSendRequestIDWraparoundSkipsZero(t *testing.T) {
 	id, err = c.sendMsg(message.Request, "test.route", []byte{0x02})
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), id)
+}
+
+func TestSendRequestIDConcurrentWraparoundUniqueness(t *testing.T) {
+	c := New(logrus.InfoLevel)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockConn := mocks.NewMockPlayerConn(ctrl)
+	c.conn = mockConn
+	c.closeChan = make(chan struct{})
+	// Keep the channel non-blocking for concurrent sends.
+	c.pendingChan = make(chan bool, 2048)
+
+	const senders = 16
+	const sendsPerSender = 16
+	mockConn.EXPECT().Write(gomock.Any()).Return(16, nil).Times(senders * sendsPerSender)
+
+	c.nextID = math.MaxUint64 - senders
+
+	ids := make([][]uint64, senders)
+	var wg sync.WaitGroup
+	for sender := 0; sender < senders; sender++ {
+		ids[sender] = make([]uint64, sendsPerSender)
+		wg.Add(1)
+		go func(sender int) {
+			defer wg.Done()
+			for send := 0; send < sendsPerSender; send++ {
+				id, err := c.sendMsg(message.Request, "test.route", []byte{0x01})
+				assert.NoError(t, err)
+				assert.NotEqual(t, uint64(0), id)
+				ids[sender][send] = id
+			}
+		}(sender)
+	}
+	wg.Wait()
+
+	seen := make(map[uint64]struct{})
+	for _, senderIDs := range ids {
+		for _, id := range senderIDs {
+			_, duplicate := seen[id]
+			assert.False(t, duplicate, "duplicate request id: %d", id)
+			seen[id] = struct{}{}
+		}
+	}
+	assert.Len(t, seen, senders*sendsPerSender)
 }

@@ -103,6 +103,7 @@ type sessionImpl struct {
 	requestsInFlight    ReqInFlight                           // whether the session is waiting from a response from a remote
 	pool                *sessionPoolImpl
 	closed              int32             // guards Close against double invocation
+	setIsFrontendMu     sync.Mutex        // serializes SetIsFrontend with Close pool updates
 	logger              interfaces.Logger // logger instance for this session
 }
 
@@ -346,6 +347,8 @@ func (s *sessionImpl) updateEncodedData() error {
 
 // GetOnCloseCallbacks ...
 func (s *sessionImpl) GetOnCloseCallbacks() []func() {
+	s.RLock()
+	defer s.RUnlock()
 	return s.OnCloseCallbacks
 }
 
@@ -358,20 +361,29 @@ func (s *sessionImpl) GetIsFrontend() bool {
 
 // GetSubscriptions ...
 func (s *sessionImpl) GetSubscriptions() []*nats.Subscription {
+	s.RLock()
+	defer s.RUnlock()
 	return s.Subscriptions
 }
 
 // SetOnCloseCallbacks ...
 func (s *sessionImpl) SetOnCloseCallbacks(callbacks []func()) {
+	s.Lock()
+	defer s.Unlock()
 	s.OnCloseCallbacks = callbacks
 }
 
 // SetIsFrontend ...
 func (s *sessionImpl) SetIsFrontend(isFrontend bool) {
+	s.setIsFrontendMu.Lock()
+	defer s.setIsFrontendMu.Unlock()
+
 	s.Lock()
 	defer s.Unlock()
 	if atomic.LoadInt32(&s.closed) != 0 {
-		// A closed session must not be re-registered or recounted.
+		// A closed session must not be re-registered or recounted. Log it so
+		// callers are not silently ignored.
+		s.logger.Warnf("SetIsFrontend called on closed session (id=%d)", s.id)
 		return
 	}
 	if s.IsFrontend == isFrontend {
@@ -382,14 +394,31 @@ func (s *sessionImpl) SetIsFrontend(isFrontend bool) {
 	if isFrontend {
 		s.pool.sessionsByID.Store(s.ID(), s)
 		atomic.AddInt64(&s.pool.SessionCount, 1)
+		// A session promoted to frontend must also be resolvable by UID if it
+		// is already bound, so all three views (sessionsByID, sessionsByUID,
+		// SessionCount) stay consistent.
+		if s.uid != "" {
+			s.pool.sessionsByUID.Store(s.uid, s)
+		}
 	} else {
 		s.pool.sessionsByID.Delete(s.ID())
 		atomic.AddInt64(&s.pool.SessionCount, -1)
+		// A session demoted to backend is no longer the frontend owner of the
+		// UID, so it must not be returned by GetSessionByUID.
+		if s.uid != "" {
+			if val, ok := s.pool.sessionsByUID.Load(s.uid); ok {
+				if (val.(Session)).ID() == s.ID() {
+					s.pool.sessionsByUID.Delete(s.uid)
+				}
+			}
+		}
 	}
 }
 
 // SetSubscriptions ...
 func (s *sessionImpl) SetSubscriptions(subscriptions []*nats.Subscription) {
+	s.Lock()
+	defer s.Unlock()
 	s.Subscriptions = subscriptions
 }
 
@@ -549,6 +578,9 @@ func (s *sessionImpl) OnClose(c func()) error {
 // Close terminates current session, session related data will not be released,
 // all related data should be cleared explicitly in Session closed callback
 func (s *sessionImpl) Close() {
+	s.setIsFrontendMu.Lock()
+	defer s.setIsFrontendMu.Unlock()
+
 	if !atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
 		// already closed; SessionCount and entity must not be touched twice
 		return
