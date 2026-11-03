@@ -29,7 +29,7 @@ type Client struct {
 	client         pitayaclient.PitayaClient
 	handshake      *session.HandshakeData
 	responsesMutex sync.Mutex
-	responses      map[uint]chan []byte
+	responses      map[uint64]chan []byte
 	pushesMutex    sync.Mutex
 	pushes         map[string]chan []byte
 	timeout        time.Duration
@@ -265,7 +265,7 @@ func (c *Client) listen() {
 	}()
 }
 
-func (c *Client) getResponseChannelForID(id uint) chan []byte {
+func (c *Client) getResponseChannelForID(id uint64) chan []byte {
 	c.responsesMutex.Lock()
 	defer c.responsesMutex.Unlock()
 	if _, ok := c.responses[id]; !ok {
@@ -275,7 +275,7 @@ func (c *Client) getResponseChannelForID(id uint) chan []byte {
 	return c.responses[id]
 }
 
-func (c *Client) removeResponseChannelForID(id uint) {
+func (c *Client) removeResponseChannelForID(id uint64) {
 	c.responsesMutex.Lock()
 	defer c.responsesMutex.Unlock()
 
