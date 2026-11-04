@@ -1746,9 +1746,11 @@ func TestSessionSetIsFrontendConcurrent(t *testing.T) {
 	// Close wins exactly once; keep other workers running for enough overlap
 	// while tolerating post-Close failures that only indicate the session is
 	// already closed (Kick pushes before closing).
-	done := make(chan struct{})
 	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for i := 0; i < 200; i++ {
 			ss.SetIsFrontend(i%2 == 0)
 		}
@@ -1789,5 +1791,93 @@ func TestSessionSetIsFrontendConcurrent(t *testing.T) {
 
 	ss.Close()
 	wg.Wait()
-	close(done)
+
+	assert.Equal(t, int64(0), sessionPool.GetSessionCount())
+	assert.Nil(t, sessionPool.GetSessionByID(ss.ID()))
+	if ss.UID() != "" {
+		uidSession := sessionPool.GetSessionByUID(ss.UID())
+		if uidSession != nil {
+			assert.Equal(t, ss.ID(), uidSession.ID())
+		}
+	}
+}
+
+// TestSessionCloseReentrantCallback verifies that Close does not deadlock when
+// the entity.Close chain synchronously invokes callbacks that call Close or
+// SetIsFrontend on the same session again (finding: re-entrant lock).
+func TestSessionCloseReentrantCallback(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	sessionPool := NewSessionPool().(*sessionPoolImpl)
+	mockEntity := mocks.NewMockNetworkEntity(ctrl)
+	var ss *sessionImpl
+	// Close is the only entity call on the close path.
+	mockEntity.EXPECT().Close().DoAndReturn(func() error {
+		// A user OnClose callback legitimately re-enters the session.
+		// Before the fix this deadlocked on setIsFrontendMu.
+		ss.Close()
+		ss.SetIsFrontend(false)
+		return nil
+	}).Times(1)
+	ss = sessionPool.NewSession(mockEntity, true).(*sessionImpl)
+	ss.Close()
+
+	assert.Equal(t, int64(0), sessionPool.GetSessionCount())
+	assert.Nil(t, sessionPool.GetSessionByID(ss.ID()))
+}
+
+// TestSessionBindAfterCloseDoesNotRepopulateUID verifies that a Bind that
+// loses the race against Close does not leave a dead session in sessionsByUID
+// (finding: Bind∥Close consistency).
+func TestSessionBindAfterCloseDoesNotRepopulateUID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockEntity := mocks.NewMockNetworkEntity(ctrl)
+	mockEntity.EXPECT().Close().Return(nil).AnyTimes()
+
+	sessionPool := NewSessionPool().(*sessionPoolImpl)
+	ss := sessionPool.NewSession(mockEntity, true).(*sessionImpl)
+	uid := uuid.New().String()
+
+	// Bind must not return an error or repopulate sessionsByUID after Close.
+	_ = ss.Bind(context.Background(), uid)
+	ss.Close()
+	_ = ss.Bind(context.Background(), uid)
+
+	assert.Equal(t, int64(0), sessionPool.GetSessionCount())
+	assert.Nil(t, sessionPool.GetSessionByID(ss.ID()))
+	assert.Nil(t, sessionPool.GetSessionByUID(uid))
+}
+
+// TestSessionSetIsFrontendReplacesUIDHolder verifies that promoting a bound
+// session to frontend does not silently replace a different live session that
+// already owns the UID (finding: boundary condition).
+func TestSessionSetIsFrontendReplacesUIDHolder(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	pool := NewSessionPool().(*sessionPoolImpl)
+
+	uid := uuid.New().String()
+	ownerEntity := mocks.NewMockNetworkEntity(ctrl)
+	ownerEntity.EXPECT().Close().Return(nil).Times(1)
+	owner := pool.NewSession(ownerEntity, true)
+	assert.NoError(t, owner.Bind(context.Background(), uid))
+	assert.Equal(t, owner, pool.GetSessionByUID(uid))
+
+	// A different bound session promoted to frontend with the same UID must
+	// close the previous holder and take ownership, keeping the three views
+	// consistent.
+	promotedEntity := mocks.NewMockNetworkEntity(ctrl)
+	promotedEntity.EXPECT().
+		SendRequest(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&protos.Response{}, nil).
+		AnyTimes()
+	promoted := pool.NewSession(promotedEntity, false)
+	assert.NoError(t, promoted.Bind(context.Background(), uid))
+	promoted.SetIsFrontend(true)
+	assert.Equal(t, promoted, pool.GetSessionByUID(uid))
+	assert.Equal(t, promoted, pool.GetSessionByID(promoted.ID()))
+	// Promoted is now the single counted frontend owner; the old holder was
+	// closed.
+	assert.Equal(t, int64(1), pool.GetSessionCount())
 }

@@ -376,28 +376,34 @@ func (s *sessionImpl) SetOnCloseCallbacks(callbacks []func()) {
 // SetIsFrontend ...
 func (s *sessionImpl) SetIsFrontend(isFrontend bool) {
 	s.setIsFrontendMu.Lock()
-	defer s.setIsFrontendMu.Unlock()
-
 	s.Lock()
-	defer s.Unlock()
 	if atomic.LoadInt32(&s.closed) != 0 {
 		// A closed session must not be re-registered or recounted. Log it so
 		// callers are not silently ignored.
 		s.logger.Warnf("SetIsFrontend called on closed session (id=%d)", s.id)
+		s.Unlock()
+		s.setIsFrontendMu.Unlock()
 		return
 	}
 	if s.IsFrontend == isFrontend {
+		s.Unlock()
+		s.setIsFrontendMu.Unlock()
 		return
 	}
 	s.IsFrontend = isFrontend
 
+	var replaced Session
 	if isFrontend {
 		s.pool.sessionsByID.Store(s.ID(), s)
 		atomic.AddInt64(&s.pool.SessionCount, 1)
 		// A session promoted to frontend must also be resolvable by UID if it
 		// is already bound, so all three views (sessionsByID, sessionsByUID,
-		// SessionCount) stay consistent.
+		// SessionCount) stay consistent. Another live session must not be
+		// silently replaced.
 		if s.uid != "" {
+			if val, ok := s.pool.sessionsByUID.Load(s.uid); ok && (val.(Session)).ID() != s.ID() {
+				replaced = val.(Session)
+			}
 			s.pool.sessionsByUID.Store(s.uid, s)
 		}
 	} else {
@@ -412,6 +418,11 @@ func (s *sessionImpl) SetIsFrontend(isFrontend bool) {
 				}
 			}
 		}
+	}
+	s.Unlock()
+	s.setIsFrontendMu.Unlock()
+	if replaced != nil {
+		replaced.Close()
 	}
 }
 
@@ -516,17 +527,29 @@ func (s *sessionImpl) Bind(ctx context.Context, uid string) error {
 		}
 	}
 
-	// if code running on frontend server
+	// The frontend pool mutation is serialized with Close and SetIsFrontend:
+	// a session that lost a Bind∥Close race must not repopulate
+	// sessionsByUID after its pool entries were removed.
 	s.RLock()
 	isFrontend := s.IsFrontend
 	s.RUnlock()
 	if isFrontend {
+		var replaced Session
+		s.setIsFrontendMu.Lock()
+		if atomic.LoadInt32(&s.closed) != 0 {
+			s.setIsFrontendMu.Unlock()
+			return nil
+		}
 		// If a session with the same UID already exists in this frontend server, close it
-		if val, ok := s.pool.sessionsByUID.Load(uid); ok {
-			s.logger.Warn("A session for this UID %s already existed in this frontend, on session ID %v closing it", val.(Session).ID())
-			val.(Session).Close()
+		if val, ok := s.pool.sessionsByUID.Load(uid); ok && (val.(Session)).ID() != s.ID() {
+			replaced = val.(Session)
 		}
 		s.pool.sessionsByUID.Store(uid, s)
+		s.setIsFrontendMu.Unlock()
+		if replaced != nil {
+			s.logger.Warn("A session for this UID %s already existed in this frontend, on session ID %v closing it", replaced.ID())
+			replaced.Close()
+		}
 	} else {
 		// If frontentID is set this means it is a remote call and the current server
 		// is not the frontend server that received the user request
@@ -579,10 +602,10 @@ func (s *sessionImpl) OnClose(c func()) error {
 // all related data should be cleared explicitly in Session closed callback
 func (s *sessionImpl) Close() {
 	s.setIsFrontendMu.Lock()
-	defer s.setIsFrontendMu.Unlock()
 
 	if !atomic.CompareAndSwapInt32(&s.closed, 0, 1) {
 		// already closed; SessionCount and entity must not be touched twice
+		s.setIsFrontendMu.Unlock()
 		return
 	}
 	// SetIsFrontend keeps SessionCount and sessionsByID synchronized with
@@ -595,13 +618,19 @@ func (s *sessionImpl) Close() {
 		atomic.AddInt64(&s.pool.SessionCount, -1)
 	}
 	s.pool.sessionsByID.Delete(s.ID())
-	s.logger.Debug("Closing session")
 	// Only remove session by UID if the session ID matches the one being closed. This avoids problems with removing a valid session after the user has already reconnected before this session's heartbeat times out
 	if val, ok := s.pool.sessionsByUID.Load(s.UID()); ok {
 		if (val.(Session)).ID() == s.ID() {
 			s.pool.sessionsByUID.Delete(s.UID())
 		}
 	}
+	// Release the lock before running entity.Close(): agentImpl.Close()
+	// synchronously invokes the OnClose/SessionClose callbacks, which may
+	// legitimately call Close/SetIsFrontend again (re-entrant). Holding the
+	// non-reentrant mutex across the callback would deadlock, and the slow
+	// callback would also block unrelated SetIsFrontend/Close callers.
+	s.setIsFrontendMu.Unlock()
+	s.logger.Debug("Closing session")
 	// TODO: this logic should be moved to nats rpc server
 	if isFrontend && subs != nil && len(subs) > 0 {
 		// if the user is bound to an userid and nats rpc server is being used we need to unsubscribe
