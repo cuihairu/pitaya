@@ -538,6 +538,9 @@ func (s *sessionImpl) Bind(ctx context.Context, uid string) error {
 		s.setIsFrontendMu.Lock()
 		if atomic.LoadInt32(&s.closed) != 0 {
 			s.setIsFrontendMu.Unlock()
+			s.Lock()
+			s.uid = ""
+			s.Unlock()
 			return nil
 		}
 		// If a session with the same UID already exists in this frontend server, close it

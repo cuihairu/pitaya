@@ -1881,3 +1881,37 @@ func TestSessionSetIsFrontendReplacesUIDHolder(t *testing.T) {
 	// closed.
 	assert.Equal(t, int64(1), pool.GetSessionCount())
 }
+
+// TestSessionBindAfterCloseRollsBackUID verifies that a Bind whose session is
+// closed before the frontend pool mutation (finding: Bind closed check) does
+// not leave s.uid set while sessionsByUID has no entry for it. A subsequent
+// Bind on the same session must not hit ErrSessionAlreadyBound.
+func TestSessionBindAfterCloseRollsBackUID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockEntity := mocks.NewMockNetworkEntity(ctrl)
+	mockEntity.EXPECT().Close().Return(nil).AnyTimes()
+
+	pool := NewSessionPool().(*sessionPoolImpl)
+	ss := pool.NewSession(mockEntity, true).(*sessionImpl)
+	uid := uuid.New().String()
+
+	// The sessionBindCallbacks run after s.uid is set and before the frontend
+	// pool mutation. Closing the session here reproduces the Close-wins race:
+	// Bind will observe closed!=0 at the setIsFrontendMu guard.
+	pool.OnSessionBind(func(ctx context.Context, s Session) error {
+		s.Close()
+		return nil
+	})
+
+	// Bind returns nil (session closed) but must roll back s.uid so the
+	// session is not left with a stale UID that blocks future binds.
+	assert.NoError(t, ss.Bind(context.Background(), uid))
+	assert.Equal(t, "", ss.UID())
+	assert.Nil(t, pool.GetSessionByUID(uid))
+	assert.Equal(t, int64(0), pool.GetSessionCount())
+	assert.Nil(t, pool.GetSessionByID(ss.ID()))
+
+	// A later bind must not hit ErrSessionAlreadyBound.
+	assert.NoError(t, ss.Bind(context.Background(), uuid.New().String()))
+}
