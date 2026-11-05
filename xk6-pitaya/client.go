@@ -130,7 +130,7 @@ func (c *Client) RequestB64(route string, b64msg string) *sobek.Promise { // TOD
 		reject(err)
 		return promise
 	}
-	responseChan := c.getResponseChannelForID(mid)
+	responseChan := c.getResponseChannelForID(uint64(mid))
 	go func() {
 		select {
 		case responseData := <-responseChan:
@@ -174,7 +174,7 @@ func (c *Client) Request(route string, msg interface{}) *sobek.Promise { // TODO
 		reject(err)
 		return promise
 	}
-	responseChan := c.getResponseChannelForID(mid)
+	responseChan := c.getResponseChannelForID(uint64(mid))
 	go func() {
 		select {
 		case responseData := <-responseChan:
@@ -249,9 +249,9 @@ func (c *Client) listen() {
 		for m := range channel {
 			switch m.Type {
 			case pitayamessage.Response:
-				ch := c.getResponseChannelForID(m.ID)
+				ch := c.getResponseChannelForID(uint64(m.ID))
 				ch <- m.Data
-				c.removeResponseChannelForID(m.ID)
+				c.removeResponseChannelForID(uint64(m.ID))
 			case pitayamessage.Push:
 				ch := c.getPushChannelForRoute(m.Route)
 				// only keep one message in the channel, discard the rest

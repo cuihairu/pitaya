@@ -17,7 +17,7 @@ import (
 	"github.com/nats-io/nats-server/v2/server"
 	gnatsd "github.com/nats-io/nats-server/v2/test"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/tests/v3/integration"
+	"go.etcd.io/etcd/tests/v3/framework/integration"
 )
 
 // GetFreePort returns a free port
@@ -61,11 +61,23 @@ func GetTestNatsServer(t *testing.T) *server.Server {
 	return s
 }
 
+// StartTestNatsServer starts an embedded NATS server on a random port.
+func StartTestNatsServer() (*server.Server, string, error) {
+	opts := gnatsd.DefaultTestOptions
+	opts.Port = server.RANDOM_PORT
+	s := gnatsd.RunServer(&opts)
+	if !s.ReadyForConnections(5 * time.Second) {
+		s.Shutdown()
+		return nil, "", errors.New("timed out waiting for NATS server")
+	}
+	return s, s.Addr().String(), nil
+}
+
 // GetTestEtcd gets a test in memory etcd server
-func GetTestEtcd(t *testing.T) (*integration.ClusterV3, *clientv3.Client) {
+func GetTestEtcd(t *testing.T) (*integration.Cluster, *clientv3.Client) {
 	t.Helper()
 	integration.BeforeTest(t)
-	c := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
+	c := integration.NewCluster(t, &integration.ClusterConfig{Size: 1})
 	cli := c.RandClient()
 	return c, cli
 }
@@ -146,6 +158,13 @@ func StartServer(
 	cmd.Env = []string{
 		fmt.Sprintf("PITAYA_METRICS_PROMETHEUS_PORT=%d", promPort),
 		fmt.Sprintf("PITAYA_CLUSTER_RPC_CLIENT_GRPC_LAZYCONNECTION=%v", lazyConnection),
+	}
+	if natsConnect := os.Getenv("PITAYA_CLUSTER_RPC_CLIENT_NATS_CONNECT"); natsConnect != "" {
+		cmd.Env = append(
+			cmd.Env,
+			fmt.Sprintf("PITAYA_CLUSTER_RPC_CLIENT_NATS_CONNECT=%s", natsConnect),
+			fmt.Sprintf("PITAYA_CLUSTER_RPC_SERVER_NATS_CONNECT=%s", natsConnect),
+		)
 	}
 
 	outPipe, err := cmd.StderrPipe()

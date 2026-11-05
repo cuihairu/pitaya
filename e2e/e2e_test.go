@@ -41,14 +41,20 @@ var grpc = flag.Bool("grpc", false, "use grpc server and client")
 
 func TestMain(m *testing.M) {
 	flag.Parse()
+	natsServer, natsAddr, err := helpers.StartTestNatsServer()
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("PITAYA_CLUSTER_RPC_CLIENT_NATS_CONNECT", fmt.Sprintf("nats://%s", natsAddr))
 	if *update {
 		cmd := exec.Command("go", "build", "-o", "../examples/testing/server", "../examples/testing/main.go")
-		err := cmd.Run()
+		err = cmd.Run()
 		if err != nil {
 			panic(err)
 		}
 	}
 	exit := m.Run()
+	natsServer.Shutdown()
 	os.Exit(exit)
 }
 
