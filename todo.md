@@ -99,3 +99,5 @@
 - [x] 审核发现：e2e 包干净运行（go test -count=1 ./...）全部 11 个用例失败（~16s 超时，pkg/helpers/helpers.go:102 EOF）：本提交为清 pkg/cluster 外因停掉 docker testing-nats-1（4222），但 e2e 由 ../examples/testing/server 以 cluster 模式启动，其默认集群 RPC 端点为 nats://localhost:4222（pkg/config/config.go:222），NATS 不可达时服务端启动即报 "nats: no servers available for connection" 并退出；提交信息所述 "go test ./... 全绿 / e2e 绿" 不可复现——不带 -count=1 的 go test 依赖缓存掩盖了该失败（pkg/config/config.go:222） — 已修复：pkg/helpers/helpers.go 新增 StartTestNatsServer（内嵌 NATS 随机端口）并在 StartServer 透传 PITAYA_CLUSTER_RPC_{CLIENT,SERVER}_NATS_CONNECT 给服务端子进程；e2e/e2e_test.go TestMain 启动一个共享内嵌 NATS 并设置该环境变量。实测 `go test -count=1 ./e2e/`（11 例，100.6s）exit 0、`go test -count=1 ./e2e/ -grpc`（96.9s）exit 0；`go test -count=1 ./pkg/...` 全绿。
 - [x] 审核发现：本轮 diff 未见问题（559fd397..HEAD）。 — 审核通过，无需改动
 - [x] 审核发现：本轮 diff 未见问题（263223b1..HEAD）。 — 审核通过，无需改动；核实：git rev-list 263223b1..HEAD 仅 1 提交 e9a50d2（docs(todo): record audit pass），git log --oneline 检查确认仅 docs 变更。
+
+- [x] 审核发现：本轮 diff 未见问题（e9a50d27..HEAD）。 — 审核通过，无需改动；核实：git rev-list e9a50d27..HEAD 仅 1 提交 504edde（docs(todo): tick clean audit for 263223b1..HEAD），git diff --name-only e9a50d27..HEAD 仅 todo.md，纯文档变更，无代码改动，无遗留问题。
